@@ -4,6 +4,7 @@ to eliminate build failures and create production-ready code.
 """
 
 import json
+import os
 from typing import Dict, List, Any
 from datetime import datetime
 
@@ -11,6 +12,15 @@ from refactored_project_generator_service import project_generator_service
 from templates.base_template_generator import GeneratedCode
 # from shared.models.pipeline_models import GeneratedCode, ProjectArchitecture
 import logging
+
+# Import Claude Code service if available
+try:
+    from shared.services.claude_code_service import ClaudeCodeService, create_sync_wrapper
+    CLAUDE_CODE_AVAILABLE = True
+except ImportError:
+    CLAUDE_CODE_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Claude Code SDK not available, will use template generation")
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +36,23 @@ class ModernStoryExecutor:
         self.generator_service = project_generator_service
         self.project_scaffold_generated = False
         self.base_project_files = []
+        
+        # Initialize Claude Code service if available and enabled
+        self.use_ai = os.environ.get('USE_CLAUDE_AI', 'true').lower() == 'true'
+        self.claude_service = None
+        self.sync_generate_code = None
+        
+        if self.use_ai and CLAUDE_CODE_AVAILABLE:
+            try:
+                self.claude_service = ClaudeCodeService()
+                self.sync_generate_code = create_sync_wrapper(self.claude_service)
+                self.logger.info("Claude Code SDK initialized for AI-powered generation")
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize Claude Code service: {e}")
+                self.use_ai = False
+        elif self.use_ai:
+            self.logger.warning("Claude Code SDK not available, falling back to templates")
+            self.use_ai = False
     
     def execute_stories(self, user_stories: List[Dict[str, Any]], architecture: Dict[str, Any]) -> List[GeneratedCode]:
         """
@@ -90,12 +117,66 @@ class ModernStoryExecutor:
     def _enhance_project_for_story(self, story: Dict[str, Any], architecture: Any, current_files: List[GeneratedCode]) -> List[GeneratedCode]:
         """
         Use AI to enhance the project with business logic for a specific story.
+        Now actually uses Claude Code SDK when available!
         """
-        # Create enhanced prompt that works with existing project structure
-        enhanced_prompt = self._create_enhancement_prompt(story, architecture, current_files)
+        # Try AI generation first if enabled
+        if self.use_ai and self.sync_generate_code:
+            try:
+                self.logger.info(f"Using Claude Code SDK to generate code for story: {story.get('title', 'Unknown')}")
+                
+                # Prepare existing files for context (limit to prevent context overflow)
+                existing_files_context = [
+                    {'path': f.file_path, 'file_path': f.file_path}
+                    for f in current_files[:50]  # Limit context size
+                ]
+                
+                # Convert architecture object to dict for Claude Code service compatibility
+                if hasattr(architecture, '__dict__'):
+                    architecture_dict = architecture.__dict__
+                elif hasattr(architecture, 'to_dict'):
+                    architecture_dict = architecture.to_dict()
+                elif isinstance(architecture, dict):
+                    architecture_dict = architecture
+                else:
+                    # Fallback: convert object attributes to dict
+                    architecture_dict = {
+                        key: getattr(architecture, key) 
+                        for key in dir(architecture) 
+                        if not key.startswith('_') and not callable(getattr(architecture, key))
+                    }
+                
+                self.logger.info(f"Converted architecture to dict with keys: {list(architecture_dict.keys())}")
+                
+                # Call Claude Code service synchronously
+                generated_files = self.sync_generate_code(
+                    story=story,
+                    architecture=architecture_dict,
+                    existing_files=existing_files_context
+                )
+                
+                if generated_files:
+                    # Convert to GeneratedCode objects
+                    result_files = []
+                    for file_data in generated_files:
+                        result_files.append(GeneratedCode(
+                            file_path=file_data['file_path'],
+                            content=file_data['content'],
+                            component_id=f"ai_gen_{story.get('story_id', 'unknown')}_{len(result_files)}",
+                            story_id=story.get('story_id', 'unknown'),
+                            file_type=self._get_file_type(file_data['file_path']),
+                            language=self._get_language_from_extension(
+                                file_data['file_path'].split('.')[-1] if '.' in file_data['file_path'] else ''
+                            )
+                        ))
+                    
+                    self.logger.info(f"Successfully generated {len(result_files)} files using AI")
+                    return result_files
+                
+            except Exception as e:
+                self.logger.warning(f"AI generation failed: {e}, falling back to templates")
         
-        # For now, create simplified business logic files
-        # In a real implementation, this would call the Anthropic API with the enhanced prompt
+        # Fall back to template-based generation
+        self.logger.info(f"Using template generation for story: {story.get('title', 'Unknown')}")
         return self._generate_story_components(story, architecture)
     
     def _create_enhancement_prompt(self, story: Dict[str, Any], architecture: Any, current_files: List[GeneratedCode]) -> str:
@@ -444,6 +525,58 @@ async def create_item(item_data: dict):
         ))
         
         return components
+    
+    def _get_file_type(self, file_path: str) -> str:
+        """Determine file type from file path."""
+        if 'test' in file_path.lower():
+            return 'test'
+        elif 'component' in file_path.lower() or file_path.endswith(('.tsx', '.jsx', '.vue')):
+            return 'component'
+        elif 'service' in file_path.lower():
+            return 'service'
+        elif 'route' in file_path.lower() or 'router' in file_path.lower():
+            return 'route'
+        elif 'model' in file_path.lower() or 'schema' in file_path.lower():
+            return 'model'
+        elif file_path.endswith(('.json', '.yaml', '.yml', '.toml', '.ini')):
+            return 'config'
+        elif file_path.endswith(('.css', '.scss', '.sass', '.less')):
+            return 'style'
+        else:
+            return 'source'
+    
+    def _get_language_from_extension(self, extension: str) -> str:
+        """Get language from file extension."""
+        language_map = {
+            'ts': 'typescript',
+            'tsx': 'typescript',
+            'js': 'javascript',
+            'jsx': 'javascript',
+            'py': 'python',
+            'vue': 'vue',
+            'css': 'css',
+            'scss': 'scss',
+            'sass': 'sass',
+            'less': 'less',
+            'json': 'json',
+            'yaml': 'yaml',
+            'yml': 'yaml',
+            'toml': 'toml',
+            'md': 'markdown',
+            'html': 'html',
+            'xml': 'xml',
+            'sql': 'sql',
+            'sh': 'bash',
+            'bash': 'bash',
+            'rs': 'rust',
+            'go': 'go',
+            'java': 'java',
+            'cpp': 'cpp',
+            'c': 'c',
+            'h': 'c',
+            'hpp': 'cpp'
+        }
+        return language_map.get(extension.lower(), 'text')
     
     def _story_to_component_name(self, story_title: str) -> str:
         """Convert story title to valid component name."""
