@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# AWS CDK
+infrastructure/cdk.out/
+infrastructure/node_modules/
+*.js
+!jest.config.js
+*.d.ts
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# AWS
+*.pem
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+.coverage.*
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# Document processor layer build artifacts
+document-processor-layer/python/
+document-processor-layer/*.zip
+
+# PyNaCl layer build artifacts  
+layers/pynacl/*.zip
+
+# Deployment artifacts
+response*.json

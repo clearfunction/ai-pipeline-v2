@@ -1,0 +1,27 @@
+{
+  "input_sources": [
+    {
+      "type": "text",
+      "path": "test-data/project-requirements.txt",
+      "content": "Project: Task Management Dashboard\n\nObjective: Build a comprehensive task management application similar to Todoist or Asana, with AI-powered features.\n\nCore Features:\n1. User Authentication & Authorization\n2. Task Creation, Editing, and Management\n3. Project Organization\n4. Team Collaboration\n5. Real-time Notifications\n6. Calendar Integration\n7. Time Tracking\n8. Reporting & Analytics\n\nTech Stack Requirements:\n- Frontend: React with TypeScript\n- Backend: Node.js with Express\n- Database: MongoDB\n- Real-time: WebSockets\n- Authentication: JWT\n- Deployment: AWS/Netlify\n\nTarget Timeline: 8 weeks for MVP\nTeam Size: 3 developers\nBudget: $50,000"
+    },
+    {
+      "type": "json_transcript", 
+      "path": "test-data/stakeholder-meeting.json",
+      "content": "{\n  \"meeting_id\": \"task-mgmt-kickoff\",\n  \"date\": \"2024-01-16\",\n  \"duration\": \"60 minutes\",\n  \"participants\": [\"Product Owner\", \"Tech Lead\", \"UX Designer\", \"Stakeholder\"],\n  \"messages\": [\n    {\n      \"speaker\": \"Product Owner\",\n      \"timestamp\": \"10:00\",\n      \"text\": \"We need to compete with Todoist and Asana. Key differentiator is AI-powered task prioritization and smart scheduling.\"\n    },\n    {\n      \"speaker\": \"Tech Lead\",\n      \"timestamp\": \"10:05\",\n      \"text\": \"I recommend React + TypeScript frontend with Node.js backend. We'll use MongoDB for flexibility and WebSockets for real-time features.\"\n    },\n    {\n      \"speaker\": \"UX Designer\",\n      \"timestamp\": \"10:10\",\n      \"text\": \"UI should be clean and minimal. Think Notion's simplicity with Linear's modern aesthetic. Dark mode is essential.\"\n    },\n    {\n      \"speaker\": \"Stakeholder\",\n      \"timestamp\": \"10:15\",\n      \"text\": \"Priority features: task creation, project organization, team collaboration, and calendar sync. Time tracking is nice-to-have.\"\n    },\n    {\n      \"speaker\": \"Tech Lead\",\n      \"timestamp\": \"10:20\",\n      \"text\": \"For search functionality, I suggest implementing full-text search with proper indexing. We should also plan for mobile responsiveness from day one.\"\n    }\n  ]\n}"
+    },
+    {
+      "type": "email",
+      "path": "test-data/additional-requirements.txt", 
+      "content": "From: stakeholder@company.com\nTo: dev-team@company.com\nSubject: Additional Requirements - Task Management App\nDate: 2024-01-17\n\nTeam,\n\nAfter our kickoff meeting, I've identified additional requirements:\n\nHigh Priority:\n1. Google Calendar and Outlook integration for deadline syncing\n2. File attachments on tasks (up to 10MB per file)\n3. Task templates for recurring workflows\n4. Bulk task operations (edit, delete, move)\n5. Advanced filtering and sorting options\n\nMedium Priority:\n1. Time tracking with billable hours\n2. Commenting system on tasks\n3. Task dependencies and subtasks\n4. Custom project templates\n5. Email notifications\n\nLow Priority:\n1. API access for third-party integrations\n2. Export functionality (PDF, CSV)\n3. Mobile app (future phase)\n4. Advanced analytics and reporting\n\nPlease factor these into your architecture planning and user story creation.\n\nRegards,\nStakeholder"
+    }
+  ],
+  "project_id": "task-mgmt-v2-test",
+  "github_username": "rakeshatcf",
+  "metadata": {
+    "created_at": "2024-01-17T10:00:00Z",
+    "created_by": "ai-pipeline-v2-test",
+    "version": "2.0.0",
+    "test_execution": true
+  }
+}

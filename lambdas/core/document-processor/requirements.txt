@@ -1,0 +1,3 @@
+# boto3 is provided by Lambda runtime
+# pypdf is provided by document-processor-layer
+# Only include dependencies not in layers

@@ -1,0 +1,67 @@
+{
+  "data": {
+    "pipeline_context": {
+      "execution_id": "test-exec-12345",
+      "project_id": "task-mgmt-app-001",
+      "stage": "architecture_planning",
+      "input_documents": [
+        {
+          "document_id": "test-exec-12345_abc12345",
+          "document_type": "text",
+          "source_path": "test-data/project-requirements.txt",
+          "processed_at": "2024-01-16T10:30:00Z",
+          "version_hash": "abc123def456",
+          "size_bytes": 1024,
+          "lineage": []
+        }
+      ]
+    },
+    "user_stories": [
+      {
+        "story_id": "test-exec-12345_story_001",
+        "title": "User Registration",
+        "description": "As a new user, I want to create an account with email and password so that I can start using the task management application",
+        "acceptance_criteria": [
+          "User can enter email and password on registration form",
+          "System validates email format and password strength",
+          "User receives confirmation email after successful registration"
+        ],
+        "priority": 1,
+        "estimated_effort": 5,
+        "dependencies": [],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_002",
+        "title": "Task Creation",
+        "description": "As a logged-in user, I want to create new tasks with title and description so that I can track my work items",
+        "acceptance_criteria": [
+          "User can access task creation form from dashboard",
+          "User can enter task title and description",
+          "Task is saved to database and appears in task list"
+        ],
+        "priority": 2,
+        "estimated_effort": 5,
+        "dependencies": ["test-exec-12345_story_001"],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_003",
+        "title": "Task List View",
+        "description": "As a user, I want to see all my tasks in a organized list so that I can review and manage my workload",
+        "acceptance_criteria": [
+          "User sees list of all their tasks on dashboard",
+          "Tasks display title, due date, and priority",
+          "User can mark tasks as complete/incomplete"
+        ],
+        "priority": 2,
+        "estimated_effort": 5,
+        "dependencies": ["test-exec-12345_story_002"],
+        "status": "pending",
+        "assigned_components": []
+      }
+    ]
+  }
+}

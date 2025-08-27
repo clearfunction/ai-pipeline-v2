@@ -1,0 +1,40 @@
+# Core dependencies
+boto3>=1.34.0
+botocore>=1.34.0
+pydantic>=2.5.0
+loguru>=0.7.0
+python-dotenv>=1.0.0
+
+# AWS utilities (from proven v1 stack)
+aws-lambda-powertools>=2.32.0
+
+# AI/ML dependencies - Anthropic only
+anthropic>=0.8.0
+
+# Async support
+httpx>=0.25.0
+asyncio
+
+# Document processing (using proven v1 versions)
+pypdf>=3.17.0
+python-docx>=1.1.0
+python-multipart>=0.0.6
+python-pptx>=0.6.23
+
+# Web & API utilities
+requests>=2.31.0
+fastapi>=0.100.0
+python-slugify>=8.0.0
+
+# Development dependencies
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.12.0
+black>=23.12.0
+isort>=5.13.0
+mypy>=1.8.0
+tqdm>=4.66.0
+
+# Infrastructure
+aws-cdk-lib>=2.100.0
+constructs>=10.3.0

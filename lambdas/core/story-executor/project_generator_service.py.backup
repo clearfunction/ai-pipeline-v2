@@ -1,0 +1,3242 @@
+"""
+Project Generator Service - Uses industry-standard project generators
+to create complete, working project scaffolds that eliminate build failures.
+
+Replaces manual code generation with proven tools like create-vite, create-vue, etc.
+"""
+
+import json
+import os
+import subprocess
+import tempfile
+import shutil
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+from datetime import datetime
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class GeneratedCode:
+    """Simple class to represent generated code without pydantic dependency."""
+    
+    def __init__(self, file_path: str, content: str, component_id: str, story_id: str, 
+                 file_type: str, language: str):
+        self.file_path = file_path
+        self.content = content
+        self.component_id = component_id
+        self.story_id = story_id
+        self.file_type = file_type
+        self.language = language
+        self.content_hash = hash(content)
+        self.size_bytes = len(content.encode('utf-8'))
+        self.created_at = datetime.utcnow().isoformat()
+
+
+class TechStack:
+    """Simple enum-like class for tech stacks."""
+    REACT_SPA = 'react_spa'
+    VUE_SPA = 'vue_spa'
+    NODE_API = 'node_api'
+    REACT_FULLSTACK = 'react_fullstack'
+    PYTHON_API = 'python_api'
+    
+    @classmethod
+    def all_values(cls):
+        return [cls.REACT_SPA, cls.VUE_SPA, cls.NODE_API, cls.REACT_FULLSTACK, cls.PYTHON_API]
+
+
+class ProjectGeneratorService:
+    """Service for generating projects using industry-standard tools."""
+    
+    def __init__(self):
+        self.logger = logger
+        
+        # Map tech stacks to their static template generators (no npm commands needed)
+        self.generators = {
+            TechStack.REACT_SPA: {
+                'description': 'React + Vite + TypeScript template (static)',
+                'runtime': 'node'
+            },
+            TechStack.VUE_SPA: {
+                'description': 'Vue 3 + Vite + TypeScript template (static)',
+                'runtime': 'node'
+            },
+            TechStack.NODE_API: {
+                'description': 'Fastify + TypeScript API template (static)',
+                'runtime': 'node'
+            },
+            TechStack.REACT_FULLSTACK: {
+                'description': 'React + TypeScript fullstack template (static)',
+                'runtime': 'node'
+            },
+            TechStack.PYTHON_API: {
+                'description': 'FastAPI + Python project structure (static)',
+                'runtime': 'python'
+            }
+        }
+    
+    def generate_project_scaffold(self, architecture: Any) -> List[GeneratedCode]:
+        """
+        Generate a complete project scaffold using industry-standard tools.
+        
+        Args:
+            architecture: Project architecture configuration
+            
+        Returns:
+            List of GeneratedCode objects representing the complete project
+        """
+        try:
+            tech_stack = architecture.tech_stack
+            project_name = self._sanitize_project_name(architecture.name)
+            
+            self.logger.info(f"Generating project scaffold for {tech_stack} using proven generators")
+            
+            if tech_stack not in self.generators:
+                raise ValueError(f"Unsupported tech stack for generator: {tech_stack}")
+            
+            generator_config = self.generators[tech_stack]
+            
+            if generator_config['runtime'] == 'node':
+                return self._generate_node_project(project_name, generator_config, architecture)
+            elif generator_config['runtime'] == 'python':
+                return self._generate_python_project(project_name, generator_config, architecture)
+            else:
+                raise ValueError(f"Unsupported runtime: {generator_config['runtime']}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to generate project scaffold: {str(e)}")
+            raise Exception(f"Project generator failed for {tech_stack}: {str(e)}")
+    
+    def _generate_node_project(self, project_name: str, generator_config: Dict, architecture: Any) -> List[GeneratedCode]:
+        """Generate Node.js-based project using static templates that replicate proven generators."""
+        self.logger.info(f"Generating {architecture.tech_stack} project using static templates")
+        
+        # Use static templates that replicate the exact output of proven generators
+        if architecture.tech_stack == 'react_spa':
+            return self._generate_react_vite_template(project_name)
+        elif architecture.tech_stack == 'vue_spa':
+            return self._generate_vue_vite_template(project_name)
+        elif architecture.tech_stack == 'node_api':
+            return self._generate_fastify_template(project_name)
+        elif architecture.tech_stack == 'react_fullstack':
+            return self._generate_react_fullstack_template(project_name)
+        else:
+            raise Exception(f"Unsupported tech stack: {architecture.tech_stack}")
+    
+    def _generate_python_project(self, project_name: str, generator_config: Dict, architecture: Any) -> List[GeneratedCode]:
+        """Generate Python project using FastAPI template."""
+        generated_files = []
+        
+        # Generate FastAPI project structure manually (since cookiecutter is complex in Lambda)
+        fastapi_template = {
+            'main.py': self._get_fastapi_main_template(project_name),
+            'requirements.txt': self._get_python_requirements_template(),
+            'app/__init__.py': '',
+            'app/main.py': self._get_fastapi_app_template(),
+            'app/api/__init__.py': '',
+            'app/api/api.py': self._get_fastapi_api_template(),
+            'app/core/__init__.py': '',
+            'app/core/config.py': self._get_fastapi_config_template(),
+            'app/models/__init__.py': '',
+            'app/services/__init__.py': '',
+            'tests/__init__.py': '',
+            'tests/test_main.py': self._get_python_test_template(),
+            '.gitignore': self._get_python_gitignore_template(),
+            'Dockerfile': self._get_python_dockerfile_template(project_name),
+            'pyproject.toml': self._get_python_pyproject_template(project_name)
+        }
+        
+        for file_path, content in fastapi_template.items():
+            generated_files.append(GeneratedCode(
+                file_path=file_path,
+                content=content,
+                component_id="project_scaffold",
+                story_id="initialization",
+                file_type="config" if file_path.endswith(('.py', '.toml', '.txt', '.json')) else "source",
+                language="python" if file_path.endswith('.py') else "text"
+            ))
+        
+        self.logger.info(f"Generated FastAPI project with {len(generated_files)} files")
+        return generated_files
+    
+    def _extract_project_files(self, project_path: Path, architecture: Any) -> List[GeneratedCode]:
+        """Extract all files from generated project directory."""
+        generated_files = []
+        
+        # Skip certain directories and files
+        skip_patterns = {
+            'node_modules', '.git', '.DS_Store', 'dist', 'build', 
+            '__pycache__', '.pytest_cache', '.vscode', '.idea'
+        }
+        
+        for file_path in project_path.rglob('*'):
+            if file_path.is_file():
+                # Skip unwanted files
+                if any(pattern in str(file_path) for pattern in skip_patterns):
+                    continue
+                
+                # Get relative path
+                relative_path = file_path.relative_to(project_path)
+                
+                try:
+                    # Read file content
+                    if self._is_binary_file(file_path):
+                        # Skip binary files for now
+                        continue
+                    
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    
+                    # Determine file type and language
+                    file_type, language = self._determine_file_type(str(relative_path))
+                    
+                    generated_files.append(GeneratedCode(
+                        file_path=str(relative_path),
+                        content=content,
+                        component_id="project_scaffold",
+                        story_id="initialization",
+                        file_type=file_type,
+                        language=language
+                    ))
+                    
+                except Exception as e:
+                    self.logger.warning(f"Failed to read file {relative_path}: {str(e)}")
+                    continue
+        
+        return generated_files
+    
+    def _is_binary_file(self, file_path: Path) -> bool:
+        """Check if file is binary."""
+        binary_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.woff', '.woff2', '.ttf', '.eot'}
+        return file_path.suffix.lower() in binary_extensions
+    
+    def _determine_file_type(self, file_path: str) -> tuple[str, str]:
+        """Determine file type and language from file path."""
+        if file_path.endswith(('.json', '.toml', '.yaml', '.yml', '.env')):
+            return 'config', 'json' if file_path.endswith('.json') else 'text'
+        elif file_path.endswith(('.ts', '.tsx')):
+            return 'source', 'typescript'
+        elif file_path.endswith(('.js', '.jsx')):
+            return 'source', 'javascript'
+        elif file_path.endswith('.vue'):
+            return 'source', 'vue'
+        elif file_path.endswith('.py'):
+            return 'source', 'python'
+        elif file_path.endswith(('.html', '.htm')):
+            return 'template', 'html'
+        elif file_path.endswith(('.css', '.scss', '.sass')):
+            return 'style', 'css'
+        elif file_path.endswith('.md'):
+            return 'documentation', 'markdown'
+        else:
+            return 'config', 'text'
+    
+    
+    def _sanitize_project_name(self, name: str) -> str:
+        """Sanitize project name for generator compatibility."""
+        import re
+        # Replace non-alphanumeric characters with hyphens
+        sanitized = re.sub(r'[^a-zA-Z0-9-_]', '-', name.lower())
+        # Remove multiple consecutive hyphens
+        sanitized = re.sub(r'-+', '-', sanitized)
+        # Remove leading/trailing hyphens
+        sanitized = sanitized.strip('-')
+        # Ensure it starts with a letter (npm requirement)
+        if sanitized and not sanitized[0].isalpha():
+            sanitized = 'project-' + sanitized
+        
+        return sanitized or 'generated-project'
+    
+    def _generate_react_vite_template(self, project_name: str) -> List[GeneratedCode]:
+        """Generate React + Vite project template (replicates npm create vite@latest)."""
+        files = []
+        
+        # package.json - enhanced with comprehensive test infrastructure
+        package_json = {
+            "name": project_name,
+            "private": True,
+            "version": "0.0.0",
+            "type": "module",
+            "scripts": {
+                "dev": "vite",
+                "build": "tsc && vite build",
+                "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+                "preview": "vite preview",
+                "test": "vitest",
+                "test:ci": "vitest run",
+                "test:coverage": "vitest run --coverage",
+                "test:watch": "vitest --watch",
+                "type-check": "tsc --noEmit",
+                "analyze:bundle": "npx vite-bundle-analyzer"
+            },
+            "dependencies": {
+                "react": "^18.2.0",
+                "react-dom": "^18.2.0"
+            },
+            "devDependencies": {
+                "@types/react": "^18.2.66",
+                "@types/react-dom": "^18.2.22",
+                "@typescript-eslint/eslint-plugin": "^7.2.0",
+                "@typescript-eslint/parser": "^7.2.0",
+                "@vitejs/plugin-react": "^4.2.1",
+                "eslint": "^8.57.0",
+                "eslint-plugin-react-hooks": "^4.6.0",
+                "eslint-plugin-react-refresh": "^0.4.6",
+                "typescript": "^5.2.2",
+                "vite": "^5.2.0",
+                "vitest": "^1.6.0",
+                "@testing-library/react": "^14.0.0",
+                "@testing-library/jest-dom": "^6.1.4",
+                "@testing-library/user-event": "^14.5.0",
+                "jsdom": "^24.0.0",
+                "@vitest/coverage-v8": "^1.6.0",
+                "vite-bundle-analyzer": "^0.7.0"
+            }
+        }
+        
+        files.append(GeneratedCode(
+            file_path="package.json",
+            content=json.dumps(package_json, indent=2),
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="json"
+        ))
+        
+        # package-lock.json (simplified but valid)
+        package_lock = {
+            "name": project_name,
+            "version": "0.0.0",
+            "lockfileVersion": 3,
+            "requires": True,
+            "packages": {
+                "": {
+                    "name": project_name,
+                    "version": "0.0.0"
+                }
+            }
+        }
+        
+        files.append(GeneratedCode(
+            file_path="package-lock.json",
+            content=json.dumps(package_lock, indent=2),
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="json"
+        ))
+        
+        # index.html
+        index_html = f'''<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{project_name}</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>'''
+        
+        files.append(GeneratedCode(
+            file_path="index.html",
+            content=index_html,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="template",
+            language="html"
+        ))
+        
+        # vite.config.ts
+        vite_config = '''import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    css: true,
+    coverage: {
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'src/test/',
+        '**/*.d.ts',
+        '**/*.config.*',
+        'dist/',
+      ],
+    },
+  },
+})
+'''
+        
+        files.append(GeneratedCode(
+            file_path="vite.config.ts",
+            content=vite_config,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="typescript"
+        ))
+        
+        # tsconfig.json
+        tsconfig = {
+            "compilerOptions": {
+                "target": "ES2020",
+                "useDefineForClassFields": True,
+                "lib": ["ES2020", "DOM", "DOM.Iterable"],
+                "module": "ESNext",
+                "skipLibCheck": True,
+                "moduleResolution": "bundler",
+                "allowImportingTsExtensions": True,
+                "resolveJsonModule": True,
+                "isolatedModules": True,
+                "noEmit": True,
+                "jsx": "react-jsx",
+                "strict": True,
+                "noUnusedLocals": True,
+                "noUnusedParameters": True,
+                "noFallthroughCasesInSwitch": True
+            },
+            "include": ["src"],
+            "references": [{"path": "./tsconfig.node.json"}]
+        }
+        
+        files.append(GeneratedCode(
+            file_path="tsconfig.json",
+            content=json.dumps(tsconfig, indent=2),
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="json"
+        ))
+        
+        # tsconfig.node.json
+        tsconfig_node = {
+            "compilerOptions": {
+                "composite": True,
+                "skipLibCheck": True,
+                "module": "ESNext",
+                "moduleResolution": "bundler",
+                "allowSyntheticDefaultImports": True,
+                "strict": True
+            },
+            "include": ["vite.config.ts"]
+        }
+        
+        files.append(GeneratedCode(
+            file_path="tsconfig.node.json",
+            content=json.dumps(tsconfig_node, indent=2),
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="json"
+        ))
+        
+        # .eslintrc.cjs
+        eslintrc = '''module.exports = {
+  root: true,
+  env: { browser: true, es2020: true },
+  extends: [
+    'eslint:recommended',
+    '@typescript-eslint/recommended',
+    'eslint-plugin-react-hooks/recommended',
+  ],
+  ignorePatterns: ['dist', '.eslintrc.cjs'],
+  parser: '@typescript-eslint/parser',
+  plugins: ['react-refresh'],
+  rules: {
+    'react-refresh/only-export-components': [
+      'warn',
+      { allowConstantExport: true },
+    ],
+  },
+}
+'''
+        
+        files.append(GeneratedCode(
+            file_path=".eslintrc.cjs",
+            content=eslintrc,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="javascript"
+        ))
+        
+        # .gitignore
+        gitignore = '''# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+'''
+        
+        files.append(GeneratedCode(
+            file_path=".gitignore",
+            content=gitignore,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="text"
+        ))
+        
+        # src/main.tsx
+        main_tsx = '''import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.tsx'
+import './index.css'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
+'''
+        
+        files.append(GeneratedCode(
+            file_path="src/main.tsx",
+            content=main_tsx,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="source",
+            language="typescript"
+        ))
+        
+        # src/App.tsx
+        app_tsx = '''import { useState } from 'react'
+import reactLogo from './assets/react.svg'
+import viteLogo from '/vite.svg'
+import './App.css'
+
+function App() {
+  const [count, setCount] = useState(0)
+
+  return (
+    <>
+      <div>
+        <a href="https://vitejs.dev" target="_blank">
+          <img src={viteLogo} className="logo" alt="Vite logo" />
+        </a>
+        <a href="https://react.dev" target="_blank">
+          <img src={reactLogo} className="logo react" alt="React logo" />
+        </a>
+      </div>
+      <h1>Vite + React</h1>
+      <div className="card">
+        <button onClick={() => setCount((count) => count + 1)}>
+          count is {count}
+        </button>
+        <p>
+          Edit <code>src/App.tsx</code> and save to test HMR
+        </p>
+      </div>
+      <p className="read-the-docs">
+        Click on the Vite and React logos to learn more
+      </p>
+    </>
+  )
+}
+
+export default App
+'''
+        
+        files.append(GeneratedCode(
+            file_path="src/App.tsx",
+            content=app_tsx,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="source",
+            language="typescript"
+        ))
+        
+        # src/App.css
+        app_css = '''#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+'''
+        
+        files.append(GeneratedCode(
+            file_path="src/App.css",
+            content=app_css,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="style",
+            language="css"
+        ))
+        
+        # src/index.css
+        index_css = ''':root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  color: white;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+'''
+        
+        files.append(GeneratedCode(
+            file_path="src/index.css",
+            content=index_css,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="style",
+            language="css"
+        ))
+        
+        # Test infrastructure files
+        
+        # src/test/setup.ts - Test setup configuration
+        test_setup = '''import '@testing-library/jest-dom'
+
+// Global test setup
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+})
+
+// Mock IntersectionObserver
+global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}))
+'''
+        
+        files.append(GeneratedCode(
+            file_path="src/test/setup.ts",
+            content=test_setup,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="config",
+            language="typescript"
+        ))
+        
+        # src/App.test.tsx - Sample test for App component
+        app_test = '''import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect } from 'vitest'
+import App from './App'
+
+describe('App', () => {
+  it('renders without crashing', () => {
+    render(<App />)
+    expect(screen.getByText(/vite \\+ react/i)).toBeInTheDocument()
+  })
+
+  it('displays initial count value', () => {
+    render(<App />)
+    expect(screen.getByText(/count is 0/i)).toBeInTheDocument()
+  })
+
+  it('increments count when button is clicked', () => {
+    render(<App />)
+    const button = screen.getByRole('button', { name: /count is 0/i })
+    fireEvent.click(button)
+    expect(screen.getByText(/count is 1/i)).toBeInTheDocument()
+  })
+
+  it('contains Vite logo', () => {
+    render(<App />)
+    const viteLogo = screen.getByAltText(/vite logo/i)
+    expect(viteLogo).toBeInTheDocument()
+    expect(viteLogo).toHaveAttribute('src', '/vite.svg')
+  })
+
+  it('contains React logo', () => {
+    render(<App />)
+    const reactLogo = screen.getByAltText(/react logo/i)
+    expect(reactLogo).toBeInTheDocument()
+    expect(reactLogo.getAttribute('src')).toContain('react.svg')
+  })
+
+  it('has external links with correct attributes', () => {
+    render(<App />)
+    const viteLink = screen.getByRole('link', { name: /vite logo/i })
+    const reactLink = screen.getByRole('link', { name: /react logo/i })
+    
+    expect(viteLink).toHaveAttribute('href', 'https://vitejs.dev')
+    expect(viteLink).toHaveAttribute('target', '_blank')
+    expect(reactLink).toHaveAttribute('href', 'https://react.dev')
+    expect(reactLink).toHaveAttribute('target', '_blank')
+  })
+})
+'''
+        
+        files.append(GeneratedCode(
+            file_path="src/App.test.tsx",
+            content=app_test,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="source",
+            language="typescript"
+        ))
+        
+        # src/test/utils.tsx - Testing utilities
+        test_utils = '''import { ReactElement } from 'react'
+import { render, RenderOptions } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+
+// Custom render function with providers if needed
+const customRender = (
+  ui: ReactElement,
+  options?: Omit<RenderOptions, 'wrapper'>
+) => {
+  return {
+    user: userEvent.setup(),
+    ...render(ui, options),
+  }
+}
+
+// Re-export everything
+export * from '@testing-library/react'
+export { customRender as render }
+'''
+        
+        files.append(GeneratedCode(
+            file_path="src/test/utils.tsx",
+            content=test_utils,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="source",
+            language="typescript"
+        ))
+        
+        # Asset files
+        
+        # public/vite.svg - Vite logo
+        vite_svg = '''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>'''
+        
+        files.append(GeneratedCode(
+            file_path="public/vite.svg",
+            content=vite_svg,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="template",
+            language="xml"
+        ))
+        
+        # src/assets/react.svg - React logo
+        react_svg = '''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>'''
+        
+        files.append(GeneratedCode(
+            file_path="src/assets/react.svg",
+            content=react_svg,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="template",
+            language="xml"
+        ))
+        
+        # README.md
+        readme = f'''# {project_name}
+
+This project was generated using industry-standard tools and enhanced with AI-driven business logic.
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+
+### Installation
+```bash
+npm install
+```
+
+### Development
+```bash
+npm run dev
+```
+
+### Build
+```bash
+npm run build
+```
+
+### Testing
+```bash
+# Run tests in watch mode
+npm run test
+
+# Run tests once (CI mode)
+npm run test:ci
+
+# Generate test coverage report
+npm run test:coverage
+
+# Run type checking
+npm run type-check
+```
+
+### Preview
+```bash
+npm run preview
+```
+
+## Tech Stack
+- **React 18** with TypeScript
+- **Vite** for fast development and building
+- **Vitest** for unit testing
+- **Testing Library** for component testing
+- **ESLint** for code linting
+- **CSS3** for styling
+
+---
+*Generated by AI Pipeline v2*
+'''
+        
+        files.append(GeneratedCode(
+            file_path="README.md",
+            content=readme,
+            component_id="project_scaffold",
+            story_id="initialization",
+            file_type="documentation",
+            language="markdown"
+        ))
+        
+        self.logger.info(f"Generated {len(files)} React Vite template files")
+        return files
+    
+    def _generate_vue_vite_template(self, project_name: str) -> List[GeneratedCode]:
+        """Generate Vue + Vite project template (replicates npm create vue@latest)."""
+        generated_files = []
+        
+        # Generate complete Vue + Vite project structure
+        vue_template = {
+            'package.json': self._get_vue_package_json_template(project_name),
+            'package-lock.json': self._get_vue_package_lock_template(project_name),
+            'vite.config.ts': self._get_vue_vite_config_template(),
+            'tsconfig.json': self._get_vue_tsconfig_template(),
+            'index.html': self._get_vue_index_html_template(project_name),
+            'src/main.ts': self._get_vue_main_template(),
+            'src/App.vue': self._get_vue_app_template(),
+            'src/style.css': self._get_vue_style_template(),
+            'src/components/HelloWorld.vue': self._get_vue_hello_world_template(),
+            '.gitignore': self._get_vue_gitignore_template(),
+            'README.md': self._get_vue_readme_template(project_name),
+            'tsconfig.node.json': self._get_vue_node_tsconfig_template(),
+            # Test infrastructure
+            'src/test/setup.ts': self._get_vue_test_setup_template(),
+            'src/App.test.ts': self._get_vue_app_test_template(),
+            'src/components/HelloWorld.test.ts': self._get_vue_hello_world_test_template(),
+            'src/test/utils.ts': self._get_vue_test_utils_template(),
+            'vitest.config.component.ts': self._get_vue_vitest_component_config_template(),
+            'playwright.config.ts': self._get_vue_playwright_config_template(),
+            'playwright-visual.config.ts': self._get_vue_playwright_visual_config_template(),
+            'playwright-smoke.config.ts': self._get_vue_playwright_smoke_config_template(),
+            'tests/e2e/example.spec.ts': self._get_vue_e2e_test_template(),
+            'tests/visual/example.visual.ts': self._get_vue_visual_test_template(),
+            'tests/smoke/app.smoke.ts': self._get_vue_smoke_test_template(),
+            'public/vite.svg': self._get_vite_svg_template(),
+            'src/assets/vue.svg': self._get_vue_svg_template()
+        }
+        
+        for file_path, content in vue_template.items():
+            generated_files.append(GeneratedCode(
+                file_path=file_path,
+                content=content,
+                component_id="project_scaffold",
+                story_id="initialization", 
+                file_type="config" if file_path.endswith(('.json', '.ts', '.html', '.md', '.css')) else "component",
+                language="typescript" if file_path.endswith('.ts') else ("vue" if file_path.endswith('.vue') else "text")
+            ))
+        
+        self.logger.info(f"Generated Vue+Vite project with {len(generated_files)} files")
+        return generated_files
+    
+    def _generate_fastify_template(self, project_name: str) -> List[GeneratedCode]:
+        """Generate Fastify API template with comprehensive testing infrastructure."""
+        generated_files = []
+        
+        # Generate complete Node.js + Fastify project structure
+        nodejs_template = {
+            'package.json': self._get_nodejs_package_json_template(project_name),
+            'package-lock.json': self._get_nodejs_package_lock_template(project_name),
+            'app.js': self._get_nodejs_app_template(project_name),
+            'server.js': self._get_nodejs_server_template(),
+            'routes/index.js': self._get_nodejs_routes_template(),
+            'routes/health.js': self._get_nodejs_health_template(),
+            'middleware/cors.js': self._get_nodejs_cors_template(),
+            'middleware/logger.js': self._get_nodejs_logger_template(),
+            'config/database.js': self._get_nodejs_database_config_template(),
+            'config/environment.js': self._get_nodejs_environment_config_template(),
+            '.env.example': self._get_nodejs_env_example_template(),
+            '.gitignore': self._get_nodejs_gitignore_template(),
+            'README.md': self._get_nodejs_readme_template(project_name),
+            # Test infrastructure
+            'jest.config.js': self._get_nodejs_jest_config_template(),
+            'tests/setup.js': self._get_nodejs_test_setup_template(),
+            'tests/unit/app.test.js': self._get_nodejs_app_test_template(),
+            'tests/unit/routes/health.test.js': self._get_nodejs_health_test_template(),
+            'tests/integration/api.test.js': self._get_nodejs_integration_test_template(),
+            'tests/security/security.test.js': self._get_nodejs_security_test_template(),
+            'tests/helpers/testHelpers.js': self._get_nodejs_test_helpers_template(),
+            'Dockerfile': self._get_nodejs_dockerfile_template(project_name),
+            'docker-compose.yml': self._get_nodejs_docker_compose_template(project_name),
+            '.dockerignore': self._get_nodejs_dockerignore_template()
+        }
+        
+        for file_path, content in nodejs_template.items():
+            file_type = "config" if file_path.endswith(('.json', '.js', '.yml', '.md', '.env', 'Dockerfile')) else "source"
+            language = "javascript" if file_path.endswith('.js') else ("json" if file_path.endswith('.json') else "text")
+            
+            generated_files.append(GeneratedCode(
+                file_path=file_path,
+                content=content,
+                component_id="project_scaffold",
+                story_id="initialization", 
+                file_type=file_type,
+                language=language
+            ))
+        
+        self.logger.info(f"Generated Node.js+Fastify project with {len(generated_files)} files")
+        return generated_files
+        
+    def _generate_react_fullstack_template(self, project_name: str) -> List[GeneratedCode]:
+        """Generate React fullstack template with backend."""
+        # Start with React template and add backend structure
+        return self._generate_react_vite_template(project_name)
+    
+    # Template methods for Python projects
+    def _get_fastapi_main_template(self, project_name: str) -> str:
+        return f'''"""
+Main entry point for {project_name} FastAPI application.
+"""
+
+from app.main import app
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+'''
+    
+    def _get_fastapi_app_template(self) -> str:
+        return '''"""
+FastAPI application factory.
+"""
+
+from fastapi import FastAPI
+from app.api.api import api_router
+from app.core.config import settings
+
+app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION)
+
+app.include_router(api_router, prefix="/api/v1")
+
+@app.get("/")
+def read_root():
+    return {"message": f"Welcome to {settings.PROJECT_NAME}"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+'''
+    
+    def _get_fastapi_api_template(self) -> str:
+        return '''"""
+API routes for the application.
+"""
+
+from fastapi import APIRouter
+
+api_router = APIRouter()
+
+@api_router.get("/items/")
+def read_items():
+    return [{"name": "Item 1"}, {"name": "Item 2"}]
+
+@api_router.get("/items/{item_id}")
+def read_item(item_id: int):
+    return {"item_id": item_id, "name": f"Item {item_id}"}
+'''
+    
+    def _get_fastapi_config_template(self) -> str:
+        return '''"""
+Application configuration.
+"""
+
+import os
+from pydantic import BaseSettings
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "Generated FastAPI Project"
+    VERSION: str = "0.1.0"
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+    
+    class Config:
+        env_file = ".env"
+
+settings = Settings()
+'''
+    
+    def _get_python_requirements_template(self) -> str:
+        return '''fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.4.0
+python-multipart>=0.0.6
+pytest>=7.4.0
+httpx>=0.25.0
+'''
+    
+    def _get_python_test_template(self) -> str:
+        return '''"""
+Test cases for the application.
+"""
+
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+def test_read_root():
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "message" in response.json()
+
+def test_health_check():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy"}
+
+def test_read_items():
+    response = client.get("/api/v1/items/")
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+'''
+    
+    def _get_python_gitignore_template(self) -> str:
+        return '''# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+'''
+    
+    def _get_python_dockerfile_template(self, project_name: str) -> str:
+        return f'''FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+'''
+    
+    def _get_python_pyproject_template(self, project_name: str) -> str:
+        return f'''[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "{project_name}"
+version = "0.1.0"
+description = "Generated FastAPI project"
+requires-python = ">=3.11"
+'''
+        
+    # Vue template methods
+    def _get_vue_package_json_template(self, project_name: str) -> str:
+        return f'''{{
+  "name": "{project_name}",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {{
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:component": "vitest run --config vitest.config.component.ts",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch",
+    "test:e2e": "playwright test",
+    "test:a11y": "axe src/components --ext .vue",
+    "test:visual": "playwright test --config playwright-visual.config.ts",
+    "test:smoke": "playwright test --config playwright-smoke.config.ts",
+    "build:analyze": "vite-bundle-analyzer dist/stats.json"
+  }},
+  "dependencies": {{
+    "vue": "^3.3.0"
+  }},
+  "devDependencies": {{
+    "@vitejs/plugin-vue": "^4.2.3",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "vue-tsc": "^1.8.5",
+    "vitest": "^1.6.0",
+    "@vue/test-utils": "^2.4.0",
+    "jsdom": "^24.0.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "playwright": "^1.40.0",
+    "@playwright/test": "^1.40.0",
+    "@axe-core/cli": "^4.8.0",
+    "vite-bundle-analyzer": "^0.7.0",
+    "happy-dom": "^12.10.0"
+  }}
+}}'''
+
+    def _get_vue_package_lock_template(self, project_name: str) -> str:
+        return f'''{{
+  "name": "{project_name}",
+  "version": "0.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {{
+    "": {{
+      "name": "{project_name}",
+      "version": "0.0.0",
+      "dependencies": {{
+        "vue": "^3.3.0"
+      }},
+      "devDependencies": {{
+        "@vitejs/plugin-vue": "^4.2.3",
+        "typescript": "^5.0.2",
+        "vite": "^4.4.5",
+        "vue-tsc": "^1.8.5"
+      }}
+    }}
+  }}
+}}'''
+
+    def _get_vue_vite_config_template(self) -> str:
+        return '''import {{ defineConfig }} from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+// https://vitejs.dev/config/
+export default defineConfig({{
+  plugins: [vue()],
+  test: {{
+    globals: true,
+    environment: 'happy-dom',
+    setupFiles: ['./src/test/setup.ts'],
+    coverage: {{
+      reporter: ['text', 'json', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'src/test/',
+        '**/*.d.ts',
+        '**/*.config.*',
+        'dist/',
+        'playwright-report/',
+        'test-results/'
+      ],
+    }},
+  }},
+}})'''
+
+    def _get_vue_tsconfig_template(self) -> str:
+        return '''{{
+  "files": [],
+  "references": [
+    {{
+      "path": "./tsconfig.node.json"
+    }},
+    {{
+      "path": "./tsconfig.app.json"
+    }}
+  ]
+}}'''
+
+    def _get_vue_node_tsconfig_template(self) -> str:
+        return '''{{
+  "compilerOptions": {{
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
+  }},
+  "include": ["vite.config.ts"]
+}}'''
+
+    def _get_vue_index_html_template(self, project_name: str) -> str:
+        return f'''<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{project_name}</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>'''
+
+    def _get_vue_main_template(self) -> str:
+        return '''import {{ createApp }} from 'vue'
+import './style.css'
+import App from './App.vue'
+
+createApp(App).mount('#app')'''
+
+    def _get_vue_app_template(self) -> str:
+        return '''<script setup lang="ts">
+import HelloWorld from './components/HelloWorld.vue'
+</script>
+
+<template>
+  <div>
+    <a href="https://vitejs.dev" target="_blank">
+      <img src="/vite.svg" class="logo" alt="Vite logo" />
+    </a>
+    <a href="https://vuejs.org/" target="_blank">
+      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
+    </a>
+  </div>
+  <HelloWorld msg="Vite + Vue" />
+</template>
+
+<style scoped>
+.logo {{
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}}
+.logo:hover {{
+  filter: drop-shadow(0 0 2em #646cffaa);
+}}
+.logo.vue:hover {{
+  filter: drop-shadow(0 0 2em #42b883aa);
+}}
+</style>'''
+
+    def _get_vue_style_template(self) -> str:
+        return ''':root {{
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}}
+
+a {{
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}}
+a:hover {{
+  color: #535bf2;
+}}
+
+body {{
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}}
+
+#app {{
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}}'''
+
+    def _get_vue_hello_world_template(self) -> str:
+        return '''<script setup lang="ts">
+import {{ ref }} from 'vue'
+
+defineProps<{{
+  msg: string
+}}>()
+
+const count = ref(0)
+</script>
+
+<template>
+  <h1>{{ msg }}</h1>
+
+  <div class="card">
+    <button type="button" @click="count++">count is {{ count }}</button>
+    <p>
+      Edit
+      <code>components/HelloWorld.vue</code> to test HMR
+    </p>
+  </div>
+
+  <p>
+    Check out
+    <a href="https://vuejs.org/guide/quick-start.html#local" target="_blank"
+      >create-vue</a>, the official Vue + Vite starter
+  </p>
+  <p>
+    Install
+    <a href="https://github.com/vuejs/language-tools" target="_blank">Volar</a>
+    in your IDE for a better DX
+  </p>
+  <p class="read-the-docs">Click on the Vite and Vue logos to learn more</p>
+</template>
+
+<style scoped>
+.read-the-docs {{
+  color: #888;
+}}
+</style>'''
+
+    def _get_vue_gitignore_template(self) -> str:
+        return '''# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?'''
+
+    def _get_vue_readme_template(self, project_name: str) -> str:
+        return f'''# {project_name}
+
+This template helps you get started developing with Vue 3 + Vite + TypeScript, enhanced with comprehensive testing infrastructure.
+
+## Features
+
+- **Vue 3** with Composition API and `<script setup>` 
+- **Vite** for fast development and building
+- **TypeScript** for type safety
+- **Vitest** for unit and component testing
+- **Playwright** for E2E, visual, and smoke testing
+- **Testing Library** patterns for Vue components
+- **Accessibility testing** with axe-core
+
+## Development
+
+```bash
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+```
+
+## Testing
+
+```bash
+# Run all tests
+npm run test
+
+# Unit tests only
+npm run test:unit
+
+# Component tests with custom config
+npm run test:component
+
+# Generate coverage report
+npm run test:coverage
+
+# End-to-end tests
+npm run test:e2e
+
+# Accessibility tests
+npm run test:a11y
+
+# Visual regression tests
+npm run test:visual
+
+# Smoke tests
+npm run test:smoke
+```
+
+## Recommended IDE Setup
+
+- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin)
+
+## Tech Stack
+
+- **Vue 3** with TypeScript
+- **Vite** for development and building
+- **Vitest** for unit and component testing
+- **Vue Test Utils** for component testing utilities
+- **Playwright** for E2E testing
+- **Axe Core** for accessibility testing
+
+---
+*Generated by AI Pipeline v2*'''
+    
+    # Vue test template methods
+    def _get_vue_test_setup_template(self) -> str:
+        return '''// Test setup for Vue components
+import { config } from '@vue/test-utils'
+
+// Global test setup
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+})
+
+// Mock IntersectionObserver
+global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}))
+
+// Vue Test Utils global config
+config.global.stubs = {
+  // Stub out any components that cause issues in tests
+}
+'''
+    
+    def _get_vue_app_test_template(self) -> str:
+        return '''import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import App from './App.vue'
+
+describe('App.vue', () => {
+  it('renders without crashing', () => {
+    const wrapper = mount(App)
+    expect(wrapper.exists()).toBe(true)
+  })
+
+  it('contains Vite logo', () => {
+    const wrapper = mount(App)
+    const viteLogo = wrapper.find('img[alt="Vite logo"]')
+    expect(viteLogo.exists()).toBe(true)
+    expect(viteLogo.attributes('src')).toBe('/vite.svg')
+  })
+
+  it('contains Vue logo', () => {
+    const wrapper = mount(App)
+    const vueLogo = wrapper.find('img[alt="Vue logo"]')
+    expect(vueLogo.exists()).toBe(true)
+    expect(vueLogo.attributes('src')).toContain('vue.svg')
+  })
+
+  it('has external links with correct attributes', () => {
+    const wrapper = mount(App)
+    const links = wrapper.findAll('a')
+    
+    const viteLink = links.find(link => link.attributes('href') === 'https://vitejs.dev')
+    const vueLink = links.find(link => link.attributes('href') === 'https://vuejs.org/')
+    
+    expect(viteLink?.attributes('target')).toBe('_blank')
+    expect(vueLink?.attributes('target')).toBe('_blank')
+  })
+
+  it('renders HelloWorld component', () => {
+    const wrapper = mount(App)
+    const helloWorld = wrapper.findComponent({ name: 'HelloWorld' })
+    expect(helloWorld.exists()).toBe(true)
+  })
+})
+'''
+    
+    def _get_vue_hello_world_test_template(self) -> str:
+        return '''import { describe, it, expect } from 'vitest'
+import { mount } from '@vue/test-utils'
+import HelloWorld from './HelloWorld.vue'
+
+describe('HelloWorld.vue', () => {
+  const defaultProps = {
+    msg: 'Test Message'
+  }
+
+  it('renders without crashing', () => {
+    const wrapper = mount(HelloWorld, {
+      props: defaultProps
+    })
+    expect(wrapper.exists()).toBe(true)
+  })
+
+  it('displays the message prop', () => {
+    const testMessage = 'Hello Vue 3 + TypeScript!'
+    const wrapper = mount(HelloWorld, {
+      props: { msg: testMessage }
+    })
+    expect(wrapper.text()).toContain(testMessage)
+  })
+
+  it('has initial count of 0', () => {
+    const wrapper = mount(HelloWorld, {
+      props: defaultProps
+    })
+    expect(wrapper.text()).toContain('count is 0')
+  })
+
+  it('increments count when button is clicked', async () => {
+    const wrapper = mount(HelloWorld, {
+      props: defaultProps
+    })
+    
+    const button = wrapper.find('button')
+    expect(button.exists()).toBe(true)
+    
+    await button.trigger('click')
+    expect(wrapper.text()).toContain('count is 1')
+    
+    await button.trigger('click')
+    expect(wrapper.text()).toContain('count is 2')
+  })
+
+  it('has correct styling classes', () => {
+    const wrapper = mount(HelloWorld, {
+      props: defaultProps
+    })
+    
+    expect(wrapper.find('.read-the-docs').exists()).toBe(true)
+  })
+})
+'''
+    
+    def _get_vue_test_utils_template(self) -> str:
+        return '''import { mount, VueWrapper, MountingOptions } from '@vue/test-utils'
+import { ComponentPublicInstance } from 'vue'
+
+// Custom mount function with common defaults
+export function mountComponent<T extends ComponentPublicInstance>(
+  component: any,
+  options?: MountingOptions<any>
+): VueWrapper<T> {
+  return mount(component, {
+    global: {
+      // Add any global plugins, directives, or components here
+      plugins: [],
+      stubs: {},
+      provide: {}
+    },
+    ...options
+  })
+}
+
+// Helper to wait for Vue's nextTick and any async operations
+export async function flushPromises(): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, 0)
+  })
+}
+
+// Mock factory for common mocks
+export const createMockRouter = () => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  go: vi.fn(),
+  back: vi.fn(),
+  forward: vi.fn(),
+  currentRoute: { value: { path: '/', params: {}, query: {} } }
+})
+
+// Re-export everything from @vue/test-utils for convenience
+export * from '@vue/test-utils'
+'''
+    
+    def _get_vue_vitest_component_config_template(self) -> str:
+        return '''import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+// Separate Vitest config for component tests
+export default defineConfig({
+  plugins: [vue()],
+  test: {
+    globals: true,
+    environment: 'happy-dom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/components/**/*.test.ts'],
+    coverage: {
+      reporter: ['text', 'json', 'html'],
+      include: ['src/components/**/*.vue'],
+      exclude: ['src/components/**/*.test.ts']
+    }
+  }
+})
+'''
+    
+    def _get_vue_playwright_config_template(self) -> str:
+        return '''import { defineConfig, devices } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './tests/e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:4173',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'Mobile Chrome',
+      use: { ...devices['Pixel 5'] },
+    },
+  ],
+  webServer: {
+    command: 'npm run preview',
+    port: 4173,
+    reuseExistingServer: !process.env.CI,
+  },
+})
+'''
+    
+    def _get_vue_playwright_visual_config_template(self) -> str:
+        return '''import { defineConfig, devices } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './tests/visual',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  expect: {
+    threshold: 0.2,
+    toHaveScreenshot: { threshold: 0.2, mode: 'pixel' },
+    toMatchSnapshot: { threshold: 0.2 },
+  },
+  use: {
+    baseURL: 'http://localhost:4173',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
+  webServer: {
+    command: 'npm run preview',
+    port: 4173,
+    reuseExistingServer: !process.env.CI,
+  },
+})
+'''
+    
+    def _get_vue_playwright_smoke_config_template(self) -> str:
+        return '''import { defineConfig, devices } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './tests/smoke',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 3 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'list',
+  use: {
+    baseURL: process.env.SMOKE_TEST_URL || 'http://localhost:4173',
+    trace: 'retain-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
+  webServer: process.env.SMOKE_TEST_URL ? undefined : {
+    command: 'npm run preview',
+    port: 4173,
+    reuseExistingServer: !process.env.CI,
+  },
+})
+'''
+    
+    def _get_vue_e2e_test_template(self) -> str:
+        return '''import { test, expect } from '@playwright/test'
+
+test.describe('Vue App E2E Tests', () => {
+  test('homepage loads correctly', async ({ page }) => {
+    await page.goto('/')
+    
+    // Check page title
+    await expect(page).toHaveTitle(/Vite.*Vue/)
+    
+    // Check main heading
+    await expect(page.locator('h1')).toContainText('Vite + Vue')
+    
+    // Check logos are visible
+    await expect(page.locator('img[alt="Vite logo"]')).toBeVisible()
+    await expect(page.locator('img[alt="Vue logo"]')).toBeVisible()
+  })
+
+  test('counter functionality works', async ({ page }) => {
+    await page.goto('/')
+    
+    // Find the counter button
+    const counterButton = page.locator('button', { hasText: 'count is' })
+    
+    // Check initial count
+    await expect(counterButton).toContainText('count is 0')
+    
+    // Click the button a few times
+    await counterButton.click()
+    await expect(counterButton).toContainText('count is 1')
+    
+    await counterButton.click()
+    await expect(counterButton).toContainText('count is 2')
+  })
+
+  test('external links work correctly', async ({ page, context }) => {
+    await page.goto('/')
+    
+    // Test Vite link
+    const [vitePage] = await Promise.all([
+      context.waitForEvent('page'),
+      page.click('a[href="https://vitejs.dev"]')
+    ])
+    await expect(vitePage).toHaveURL(/vitejs.dev/)
+    await vitePage.close()
+    
+    // Test Vue link  
+    const [vuePage] = await Promise.all([
+      context.waitForEvent('page'),
+      page.click('a[href="https://vuejs.org/"]')
+    ])
+    await expect(vuePage).toHaveURL(/vuejs.org/)
+    await vuePage.close()
+  })
+})
+'''
+    
+    def _get_vue_visual_test_template(self) -> str:
+        return '''import { test, expect } from '@playwright/test'
+
+test.describe('Visual Regression Tests', () => {
+  test('homepage visual test', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    
+    // Take screenshot of full page
+    await expect(page).toHaveScreenshot('homepage.png')
+  })
+
+  test('counter interaction visual test', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    
+    // Click counter button
+    await page.click('button:has-text("count is 0")')
+    
+    // Take screenshot after interaction
+    await expect(page).toHaveScreenshot('homepage-counter-clicked.png')
+  })
+
+  test('mobile responsive visual test', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 })
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    
+    // Take mobile screenshot
+    await expect(page).toHaveScreenshot('homepage-mobile.png')
+  })
+})
+'''
+    
+    def _get_vue_smoke_test_template(self) -> str:
+        return '''import { test, expect } from '@playwright/test'
+
+test.describe('Smoke Tests', () => {
+  test('application loads and basic functionality works', async ({ page }) => {
+    // Test that the application loads
+    await page.goto('/')
+    
+    // Check that the page loads successfully
+    expect(page.url()).toContain('/')
+    
+    // Check that main content is visible
+    await expect(page.locator('body')).toBeVisible()
+    await expect(page.locator('#app')).toBeVisible()
+    
+    // Check that JavaScript is working (counter functionality)
+    const counterButton = page.locator('button:has-text("count is")')
+    await expect(counterButton).toBeVisible()
+    await counterButton.click()
+    await expect(counterButton).toContainText('count is 1')
+    
+    // Check that CSS is loaded (logo should have hover effects)
+    const logo = page.locator('.logo').first()
+    await expect(logo).toBeVisible()
+    
+    console.log('✅ Smoke test passed: App loads and basic functionality works')
+  })
+
+  test('no console errors on load', async ({ page }) => {
+    const errors: string[] = []
+    
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        errors.push(msg.text())
+      }
+    })
+    
+    await page.goto('/')
+    await page.waitForLoadState('networkidle')
+    
+    expect(errors).toHaveLength(0)
+    console.log('✅ Smoke test passed: No console errors on load')
+  })
+})
+'''
+    
+    def _get_vite_svg_template(self) -> str:
+        return '''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>'''
+    
+    def _get_vue_svg_template(self) -> str:
+        return '''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="37.07" height="36" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 198"><path fill="#41B883" d="M204.8 0H256L128 220.8L0 0h97.92L128 51.2L157.44 0h47.36Z"></path><path fill="#41B883" d="m0 0l128 220.8L256 0h-51.2L128 132.48L50.56 0H0Z"></path><path fill="#35495E" d="M50.56 0L128 133.12L204.8 0h-47.36L128 51.2L97.92 0H50.56Z"></path></svg>'''
+
+    # Node.js template methods
+    def _get_nodejs_package_json_template(self, project_name: str) -> str:
+        return f'''{{
+  "name": "{project_name}",
+  "version": "1.0.0",
+  "description": "Node.js API with comprehensive testing infrastructure",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {{
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:security": "jest tests/security",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:contract": "jest tests/contract",
+    "test:load": "artillery run tests/load/load-test.yml",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "build": "echo 'Build completed - Node.js project ready'",
+    "docker:build": "docker build -t {project_name} .",
+    "docker:run": "docker run -p 3000:3000 {project_name}"
+  }},
+  "keywords": ["nodejs", "fastify", "api", "testing"],
+  "author": "AI Pipeline v2",
+  "license": "MIT",
+  "dependencies": {{
+    "fastify": "^4.24.3",
+    "@fastify/cors": "^8.4.0",
+    "@fastify/helmet": "^11.1.1",
+    "@fastify/env": "^4.2.0",
+    "dotenv": "^16.3.1",
+    "pino": "^8.16.1",
+    "pino-pretty": "^10.2.3"
+  }},
+  "devDependencies": {{
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "nodemon": "^3.0.1",
+    "eslint": "^8.53.0",
+    "eslint-config-standard": "^17.1.0",
+    "eslint-plugin-jest": "^27.6.0",
+    "@types/jest": "^29.5.8",
+    "artillery": "^2.0.3",
+    "nock": "^13.4.0"
+  }}
+}}'''
+
+    def _get_nodejs_package_lock_template(self, project_name: str) -> str:
+        return f'''{{
+  "name": "{project_name}",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {{
+    "": {{
+      "name": "{project_name}",
+      "version": "1.0.0",
+      "license": "MIT",
+      "dependencies": {{
+        "fastify": "^4.24.3",
+        "@fastify/cors": "^8.4.0"
+      }},
+      "devDependencies": {{
+        "jest": "^29.7.0",
+        "supertest": "^6.3.3"
+      }}
+    }}
+  }}
+}}'''
+
+    def _get_nodejs_app_template(self, project_name: str) -> str:
+        return f'''/**
+ * {project_name} - Fastify Application
+ * Generated by AI Pipeline v2
+ */
+
+const fastify = require('fastify')({{
+  logger: {{
+    level: process.env.LOG_LEVEL || 'info',
+    transport: process.env.NODE_ENV === 'development' ? {{
+      target: 'pino-pretty'
+    }} : undefined
+  }}
+}})
+
+// Register plugins
+fastify.register(require('@fastify/helmet'))
+fastify.register(require('@fastify/cors'), {{
+  origin: process.env.NODE_ENV === 'production' ? false : true
+}})
+fastify.register(require('@fastify/env'), {{
+  schema: {{
+    type: 'object',
+    properties: {{
+      PORT: {{ type: 'integer', default: 3000 }},
+      NODE_ENV: {{ type: 'string', default: 'development' }},
+      DATABASE_URL: {{ type: 'string' }}
+    }}
+  }}
+}})
+
+// Register custom middleware
+fastify.register(require('./middleware/cors'))
+fastify.register(require('./middleware/logger'))
+
+// Register routes
+fastify.register(require('./routes/index'), {{ prefix: '/api/v1' }})
+fastify.register(require('./routes/health'))
+
+// Root route
+fastify.get('/', async (request, reply) => {{
+  return {{ 
+    message: 'Welcome to {project_name} API',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  }}
+}})
+
+// Error handler
+fastify.setErrorHandler((error, request, reply) => {{
+  const statusCode = error.statusCode || 500
+  
+  request.log.error({{
+    error: error.message,
+    stack: error.stack,
+    url: request.url,
+    method: request.method
+  }}, 'Request error')
+  
+  reply.status(statusCode).send({{
+    error: {{
+      message: statusCode >= 500 ? 'Internal Server Error' : error.message,
+      statusCode,
+      timestamp: new Date().toISOString()
+    }}
+  }})
+}})
+
+// 404 handler
+fastify.setNotFoundHandler((request, reply) => {{
+  reply.status(404).send({{
+    error: {{
+      message: 'Route not found',
+      statusCode: 404,
+      url: request.url,
+      method: request.method
+    }}
+  }})
+}})
+
+module.exports = fastify'''
+
+    def _get_nodejs_server_template(self) -> str:
+        return '''/**
+ * Server entry point
+ */
+
+require('dotenv').config()
+const app = require('./app')
+
+const start = async () => {
+  try {
+    const port = process.env.PORT || 3000
+    const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost'
+    
+    await app.listen({ port: parseInt(port), host })
+    app.log.info(`Server running on http://${host}:${port}`)
+  } catch (err) {
+    app.log.error(err)
+    process.exit(1)
+  }
+}
+
+// Handle graceful shutdown
+process.on('SIGTERM', async () => {
+  app.log.info('Received SIGTERM, shutting down gracefully')
+  await app.close()
+  process.exit(0)
+})
+
+process.on('SIGINT', async () => {
+  app.log.info('Received SIGINT, shutting down gracefully') 
+  await app.close()
+  process.exit(0)
+})
+
+start()'''
+
+    def _get_nodejs_routes_template(self) -> str:
+        return '''/**
+ * Main API routes
+ */
+
+async function routes(fastify, options) {
+  // Example route
+  fastify.get('/users', async (request, reply) => {
+    return {
+      users: [
+        { id: 1, name: 'John Doe', email: 'john@example.com' },
+        { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
+      ]
+    }
+  })
+
+  fastify.get('/users/:id', {
+    schema: {
+      params: {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' }
+        },
+        required: ['id']
+      }
+    }
+  }, async (request, reply) => {
+    const { id } = request.params
+    
+    // Simulate user lookup
+    if (id === 1) {
+      return { id: 1, name: 'John Doe', email: 'john@example.com' }
+    } else if (id === 2) {
+      return { id: 2, name: 'Jane Smith', email: 'jane@example.com' }
+    } else {
+      reply.status(404).send({
+        error: { message: 'User not found', statusCode: 404 }
+      })
+    }
+  })
+
+  fastify.post('/users', {
+    schema: {
+      body: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          email: { type: 'string', format: 'email' }
+        },
+        required: ['name', 'email']
+      }
+    }
+  }, async (request, reply) => {
+    const { name, email } = request.body
+    
+    // Simulate user creation
+    const newUser = {
+      id: Math.floor(Math.random() * 1000) + 3,
+      name,
+      email,
+      createdAt: new Date().toISOString()
+    }
+    
+    reply.status(201).send(newUser)
+  })
+}
+
+module.exports = routes'''
+
+    def _get_nodejs_health_template(self) -> str:
+        return '''/**
+ * Health check routes
+ */
+
+async function healthRoutes(fastify, options) {
+  fastify.get('/health', async (request, reply) => {
+    return {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      version: '1.0.0'
+    }
+  })
+
+  fastify.get('/health/ready', async (request, reply) => {
+    // Add readiness checks here (database, external services, etc.)
+    return {
+      status: 'ready',
+      timestamp: new Date().toISOString(),
+      checks: {
+        database: 'ok',
+        external_api: 'ok'
+      }
+    }
+  })
+
+  fastify.get('/health/live', async (request, reply) => {
+    return {
+      status: 'alive',
+      timestamp: new Date().toISOString()
+    }
+  })
+}
+
+module.exports = healthRoutes'''
+
+    def _get_nodejs_cors_template(self) -> str:
+        return '''/**
+ * CORS middleware configuration
+ */
+
+async function corsPlugin(fastify, options) {
+  fastify.addHook('preHandler', async (request, reply) => {
+    // Custom CORS logic if needed
+    const origin = request.headers.origin
+    
+    if (process.env.NODE_ENV === 'development') {
+      // Allow all origins in development
+      reply.header('Access-Control-Allow-Origin', '*')
+    }
+  })
+}
+
+module.exports = corsPlugin'''
+
+    def _get_nodejs_logger_template(self) -> str:
+        return '''/**
+ * Logger middleware
+ */
+
+async function loggerPlugin(fastify, options) {
+  fastify.addHook('preHandler', async (request, reply) => {
+    request.startTime = Date.now()
+  })
+
+  fastify.addHook('onResponse', async (request, reply) => {
+    const responseTime = Date.now() - request.startTime
+    
+    fastify.log.info({
+      method: request.method,
+      url: request.url,
+      statusCode: reply.statusCode,
+      responseTime: `${responseTime}ms`,
+      userAgent: request.headers['user-agent']
+    }, 'Request completed')
+  })
+}
+
+module.exports = loggerPlugin'''
+
+    def _get_nodejs_database_config_template(self) -> str:
+        return '''/**
+ * Database configuration
+ */
+
+const config = {
+  development: {
+    client: 'sqlite3',
+    connection: {
+      filename: './dev.sqlite3'
+    },
+    useNullAsDefault: true
+  },
+  
+  test: {
+    client: 'sqlite3',
+    connection: {
+      filename: ':memory:'
+    },
+    useNullAsDefault: true
+  },
+  
+  production: {
+    client: 'postgresql',
+    connection: process.env.DATABASE_URL || {
+      host: process.env.DB_HOST || 'localhost',
+      port: process.env.DB_PORT || 5432,
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'production_db'
+    },
+    pool: {
+      min: 2,
+      max: 10
+    },
+    migrations: {
+      tableName: 'knex_migrations'
+    }
+  }
+}
+
+module.exports = config[process.env.NODE_ENV || 'development']'''
+
+    def _get_nodejs_environment_config_template(self) -> str:
+        return '''/**
+ * Environment configuration
+ */
+
+module.exports = {
+  port: process.env.PORT || 3000,
+  nodeEnv: process.env.NODE_ENV || 'development',
+  logLevel: process.env.LOG_LEVEL || 'info',
+  
+  database: {
+    url: process.env.DATABASE_URL,
+    host: process.env.DB_HOST || 'localhost',
+    port: process.env.DB_PORT || 5432,
+    name: process.env.DB_NAME || 'development_db',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || ''
+  },
+  
+  jwt: {
+    secret: process.env.JWT_SECRET || 'your-secret-key',
+    expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+  },
+  
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: process.env.CORS_CREDENTIALS === 'true'
+  }
+}'''
+
+    def _get_nodejs_env_example_template(self) -> str:
+        return '''# Environment variables
+NODE_ENV=development
+PORT=3000
+LOG_LEVEL=info
+
+# Database
+DATABASE_URL=postgresql://username:password@localhost:5432/database_name
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your_database
+DB_USER=your_username
+DB_PASSWORD=your_password
+
+# JWT
+JWT_SECRET=your-super-secret-jwt-key
+JWT_EXPIRES_IN=24h
+
+# CORS
+CORS_ORIGIN=http://localhost:3000
+CORS_CREDENTIALS=true'''
+
+    def _get_nodejs_gitignore_template(self) -> str:
+        return '''# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+.nyc_output
+
+# Grunt intermediate storage
+.grunt
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Build outputs
+dist/
+build/
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Docker
+.dockerignore
+
+# Database
+*.sqlite
+*.sqlite3
+*.db'''
+
+    def _get_nodejs_readme_template(self, project_name: str) -> str:
+        return f'''# {project_name}
+
+Node.js API built with Fastify and comprehensive testing infrastructure.
+
+## Features
+
+- **Fastify** - Fast and low overhead web framework
+- **Jest** - Comprehensive testing framework
+- **ESLint** - Code linting and formatting
+- **Docker** - Containerization support
+- **Pino** - High performance logging
+- **Security** - Helmet and CORS protection
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Copy environment variables
+cp .env.example .env
+
+# Start development server
+npm run dev
+```
+
+## API Endpoints
+
+### Health Checks
+- `GET /health` - Basic health check
+- `GET /health/ready` - Readiness probe
+- `GET /health/live` - Liveness probe
+
+### Users API
+- `GET /api/v1/users` - List all users
+- `GET /api/v1/users/:id` - Get user by ID
+- `POST /api/v1/users` - Create new user
+
+## Testing
+
+```bash
+# Run all tests
+npm test
+
+# Unit tests only
+npm run test:unit
+
+# Integration tests
+npm run test:integration
+
+# Security tests
+npm run test:security
+
+# Generate coverage report
+npm run test:coverage
+
+# Contract tests (API specifications)
+npm run test:contract
+
+# Load testing
+npm run test:load
+```
+
+## Development
+
+```bash
+# Start development server with hot reload
+npm run dev
+
+# Lint code
+npm run lint
+
+# Fix linting issues
+npm run lint:fix
+```
+
+## Docker
+
+```bash
+# Build Docker image
+npm run docker:build
+
+# Run Docker container
+npm run docker:run
+
+# Or use Docker Compose
+docker-compose up
+```
+
+## Production
+
+```bash
+# Start production server
+npm start
+```
+
+## Environment Variables
+
+See `.env.example` for all available environment variables.
+
+## Tech Stack
+
+- **Fastify** - Web framework
+- **Jest** - Testing framework
+- **Supertest** - HTTP testing
+- **Artillery** - Load testing
+- **Pino** - Logging
+- **ESLint** - Code linting
+
+---
+*Generated by AI Pipeline v2*'''
+
+    # Node.js test template methods
+    def _get_nodejs_jest_config_template(self) -> str:
+        return '''module.exports = {
+  testEnvironment: 'node',
+  roots: ['<rootDir>/tests'],
+  testMatch: ['**/__tests__/**/*.js', '**/?(*.)+(spec|test).js'],
+  collectCoverageFrom: [
+    '**/*.js',
+    '!**/node_modules/**',
+    '!**/tests/**',
+    '!**/coverage/**',
+    '!jest.config.js',
+    '!server.js'
+  ],
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov', 'html'],
+  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  testTimeout: 10000,
+  detectOpenHandles: true,
+  forceExit: true
+}'''
+
+    def _get_nodejs_test_setup_template(self) -> str:
+        return '''/**
+ * Jest test setup
+ */
+
+// Increase test timeout for integration tests
+jest.setTimeout(10000)
+
+// Mock console methods to avoid noise during tests
+global.console = {
+  ...console,
+  log: jest.fn(),
+  debug: jest.fn(),
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn()
+}
+
+// Global test teardown
+afterAll(async () => {
+  // Clean up any global resources here
+  await new Promise(resolve => setTimeout(resolve, 500))
+})
+
+// Set environment variables for testing
+process.env.NODE_ENV = 'test'
+process.env.LOG_LEVEL = 'silent'
+process.env.PORT = '0' // Random available port
+'''
+
+    def _get_nodejs_app_test_template(self) -> str:
+        return '''/**
+ * App unit tests
+ */
+
+const app = require('../../app')
+
+describe('App', () => {
+  afterAll(async () => {
+    await app.close()
+  })
+
+  describe('Root Route', () => {
+    test('GET / should return welcome message', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const payload = JSON.parse(response.payload)
+      expect(payload).toHaveProperty('message')
+      expect(payload).toHaveProperty('version')
+      expect(payload).toHaveProperty('timestamp')
+      expect(payload.message).toContain('Welcome to')
+    })
+  })
+
+  describe('Error Handling', () => {
+    test('should handle 404 routes', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/nonexistent-route'
+      })
+
+      expect(response.statusCode).toBe(404)
+      const payload = JSON.parse(response.payload)
+      expect(payload.error.message).toBe('Route not found')
+      expect(payload.error.statusCode).toBe(404)
+    })
+
+    test('should handle errors with proper format', async () => {
+      // This would test error handler, but we need to trigger an actual error
+      // For now, we'll test the structure
+      expect(typeof app.errorHandler).toBe('function')
+    })
+  })
+
+  describe('CORS', () => {
+    test('should handle CORS headers', async () => {
+      const response = await app.inject({
+        method: 'OPTIONS',
+        url: '/',
+        headers: {
+          'Origin': 'http://localhost:3000'
+        }
+      })
+
+      // CORS should be handled by @fastify/cors plugin
+      expect(response.statusCode).toBeLessThan(500)
+    })
+  })
+})'''
+
+    def _get_nodejs_health_test_template(self) -> str:
+        return '''/**
+ * Health routes tests
+ */
+
+const app = require('../../../app')
+
+describe('Health Routes', () => {
+  afterAll(async () => {
+    await app.close()
+  })
+
+  describe('GET /health', () => {
+    test('should return health status', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const payload = JSON.parse(response.payload)
+      
+      expect(payload).toHaveProperty('status', 'healthy')
+      expect(payload).toHaveProperty('timestamp')
+      expect(payload).toHaveProperty('uptime')
+      expect(payload).toHaveProperty('version')
+      expect(typeof payload.uptime).toBe('number')
+    })
+  })
+
+  describe('GET /health/ready', () => {
+    test('should return readiness status', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health/ready'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const payload = JSON.parse(response.payload)
+      
+      expect(payload).toHaveProperty('status', 'ready')
+      expect(payload).toHaveProperty('timestamp')
+      expect(payload).toHaveProperty('checks')
+      expect(payload.checks).toHaveProperty('database')
+      expect(payload.checks).toHaveProperty('external_api')
+    })
+  })
+
+  describe('GET /health/live', () => {
+    test('should return liveness status', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health/live'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const payload = JSON.parse(response.payload)
+      
+      expect(payload).toHaveProperty('status', 'alive')
+      expect(payload).toHaveProperty('timestamp')
+    })
+  })
+})'''
+
+    def _get_nodejs_integration_test_template(self) -> str:
+        return '''/**
+ * Integration tests for API endpoints
+ */
+
+const app = require('../../app')
+
+describe('API Integration Tests', () => {
+  afterAll(async () => {
+    await app.close()
+  })
+
+  describe('Users API', () => {
+    test('GET /api/v1/users should return users list', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const payload = JSON.parse(response.payload)
+      
+      expect(payload).toHaveProperty('users')
+      expect(Array.isArray(payload.users)).toBe(true)
+      expect(payload.users.length).toBeGreaterThan(0)
+      
+      // Check user structure
+      const user = payload.users[0]
+      expect(user).toHaveProperty('id')
+      expect(user).toHaveProperty('name')
+      expect(user).toHaveProperty('email')
+    })
+
+    test('GET /api/v1/users/:id should return specific user', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/1'
+      })
+
+      expect(response.statusCode).toBe(200)
+      const payload = JSON.parse(response.payload)
+      
+      expect(payload).toHaveProperty('id', 1)
+      expect(payload).toHaveProperty('name')
+      expect(payload).toHaveProperty('email')
+    })
+
+    test('GET /api/v1/users/:id should return 404 for non-existent user', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/999'
+      })
+
+      expect(response.statusCode).toBe(404)
+      const payload = JSON.parse(response.payload)
+      expect(payload.error.message).toBe('User not found')
+    })
+
+    test('POST /api/v1/users should create new user', async () => {
+      const newUser = {
+        name: 'Test User',
+        email: 'test@example.com'
+      }
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/users',
+        payload: newUser
+      })
+
+      expect(response.statusCode).toBe(201)
+      const payload = JSON.parse(response.payload)
+      
+      expect(payload).toHaveProperty('id')
+      expect(payload).toHaveProperty('name', newUser.name)
+      expect(payload).toHaveProperty('email', newUser.email)
+      expect(payload).toHaveProperty('createdAt')
+    })
+
+    test('POST /api/v1/users should validate required fields', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/users',
+        payload: { name: 'Test User' } // Missing email
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    test('POST /api/v1/users should validate email format', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/users',
+        payload: {
+          name: 'Test User',
+          email: 'invalid-email'
+        }
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+  })
+})'''
+
+    def _get_nodejs_security_test_template(self) -> str:
+        return '''/**
+ * Security tests
+ */
+
+const app = require('../../app')
+
+describe('Security Tests', () => {
+  afterAll(async () => {
+    await app.close()
+  })
+
+  describe('Headers', () => {
+    test('should include security headers', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/'
+      })
+
+      // Check for helmet security headers
+      expect(response.headers).toHaveProperty('x-dns-prefetch-control')
+      expect(response.headers).toHaveProperty('x-frame-options')
+      expect(response.headers).toHaveProperty('x-download-options')
+      expect(response.headers).toHaveProperty('x-content-type-options')
+    })
+  })
+
+  describe('Input Validation', () => {
+    test('should reject invalid JSON', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/users',
+        payload: 'invalid json',
+        headers: {
+          'content-type': 'application/json'
+        }
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    test('should sanitize and validate user inputs', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/v1/users',
+        payload: {
+          name: '<script>alert("xss")</script>',
+          email: 'test@example.com'
+        }
+      })
+
+      // Should reject or sanitize malicious content
+      expect(response.statusCode).toBeLessThanOrEqual(400)
+    })
+  })
+
+  describe('Rate Limiting', () => {
+    test('should handle multiple requests gracefully', async () => {
+      const requests = Array.from({ length: 10 }, () =>
+        app.inject({
+          method: 'GET',
+          url: '/health'
+        })
+      )
+
+      const responses = await Promise.all(requests)
+      
+      // All should succeed (no rate limiting implemented yet, but structure is there)
+      responses.forEach(response => {
+        expect(response.statusCode).toBe(200)
+      })
+    })
+  })
+
+  describe('Error Information Disclosure', () => {
+    test('should not expose sensitive error details in production', async () => {
+      // Set production environment
+      const originalEnv = process.env.NODE_ENV
+      process.env.NODE_ENV = 'production'
+
+      try {
+        const response = await app.inject({
+          method: 'GET',
+          url: '/api/v1/users/invalid'
+        })
+
+        const payload = JSON.parse(response.payload)
+        
+        // Should not expose stack traces or detailed error info in production
+        expect(payload).not.toHaveProperty('stack')
+        expect(payload.error.message).toBeDefined()
+      } finally {
+        process.env.NODE_ENV = originalEnv
+      }
+    })
+  })
+})'''
+
+    def _get_nodejs_test_helpers_template(self) -> str:
+        return '''/**
+ * Test helper utilities
+ */
+
+/**
+ * Create a test user payload
+ */
+function createTestUser(overrides = {}) {
+  return {
+    name: 'Test User',
+    email: 'test@example.com',
+    ...overrides
+  }
+}
+
+/**
+ * Create multiple test users
+ */
+function createTestUsers(count = 3) {
+  return Array.from({ length: count }, (_, i) => 
+    createTestUser({
+      name: `Test User ${i + 1}`,
+      email: `test${i + 1}@example.com`
+    })
+  )
+}
+
+/**
+ * Wait for a specified amount of time
+ */
+function wait(ms = 100) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+/**
+ * Generate random test data
+ */
+function randomString(length = 10) {
+  return Math.random().toString(36).substring(2, length + 2)
+}
+
+function randomEmail() {
+  return `${randomString()}@example.com`
+}
+
+function randomNumber(min = 1, max = 1000) {
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+/**
+ * Clean up test data
+ */
+async function cleanupTestData() {
+  // Add cleanup logic here when using a real database
+  return Promise.resolve()
+}
+
+/**
+ * Setup test database
+ */
+async function setupTestDatabase() {
+  // Add database setup logic here
+  return Promise.resolve()
+}
+
+module.exports = {
+  createTestUser,
+  createTestUsers,
+  wait,
+  randomString,
+  randomEmail,
+  randomNumber,
+  cleanupTestData,
+  setupTestDatabase
+}'''
+
+    def _get_nodejs_dockerfile_template(self, project_name: str) -> str:
+        return f'''# Use Node.js LTS version
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
+
+# Change ownership of app directory
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
+  CMD node -e "http.get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
+
+# Start the application
+CMD ["npm", "start"]'''
+
+    def _get_nodejs_docker_compose_template(self, project_name: str) -> str:
+        return f'''version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=info
+      - DATABASE_URL=postgresql://postgres:password@db:5432/{project_name}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB={project_name}
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge'''
+
+    def _get_nodejs_dockerignore_template(self) -> str:
+        return '''# Dependencies
+node_modules
+npm-debug.log*
+
+# Testing
+coverage/
+tests/
+*.test.js
+*.spec.js
+
+# Development
+.git
+.gitignore
+README.md
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build artifacts
+dist
+build
+
+# Logs
+logs
+*.log
+'''

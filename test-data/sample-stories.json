@@ -1,0 +1,168 @@
+{
+  "data": {
+    "pipeline_context": {
+      "execution_id": "test-exec-12345",
+      "project_id": "task-mgmt-app-001",
+      "stage": "requirements_synthesis",
+      "input_documents": [
+        {
+          "document_id": "test-exec-12345_abc12345",
+          "document_type": "text",
+          "source_path": "test-data/project-requirements.txt",
+          "processed_at": "2024-01-16T10:30:00Z",
+          "version_hash": "abc123def456",
+          "size_bytes": 1024,
+          "lineage": []
+        },
+        {
+          "document_id": "test-exec-12345_def67890",
+          "document_type": "json_transcript",
+          "source_path": "test-data/meeting-transcript.json",
+          "processed_at": "2024-01-16T10:31:00Z",
+          "version_hash": "def456ghi789",
+          "size_bytes": 2048,
+          "lineage": []
+        }
+      ]
+    },
+    "user_stories": [
+      {
+        "story_id": "test-exec-12345_story_001",
+        "title": "User Registration",
+        "description": "As a new user, I want to create an account with email and password so that I can start using the task management application",
+        "acceptance_criteria": [
+          "User can enter email and password on registration form",
+          "System validates email format and password strength",
+          "User receives confirmation email after successful registration",
+          "User account is created in the database",
+          "User is redirected to login page after registration"
+        ],
+        "priority": 1,
+        "estimated_effort": 5,
+        "dependencies": [],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_002",
+        "title": "User Authentication",
+        "description": "As a registered user, I want to log in with my credentials so that I can access my personal task dashboard",
+        "acceptance_criteria": [
+          "User can enter email and password on login form",
+          "System validates credentials against database",
+          "Successful login redirects to user dashboard",
+          "Invalid credentials show appropriate error message",
+          "User session is maintained across page refreshes"
+        ],
+        "priority": 1,
+        "estimated_effort": 3,
+        "dependencies": ["test-exec-12345_story_001"],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_003",
+        "title": "Task Creation",
+        "description": "As a logged-in user, I want to create new tasks with title and description so that I can track my work items",
+        "acceptance_criteria": [
+          "User can access task creation form from dashboard",
+          "User can enter task title (required field)",
+          "User can enter task description (optional field)",
+          "User can set due date and priority level",
+          "Task is saved to database and appears in task list",
+          "Form validation prevents empty titles"
+        ],
+        "priority": 2,
+        "estimated_effort": 5,
+        "dependencies": ["test-exec-12345_story_002"],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_004",
+        "title": "Task List View",
+        "description": "As a user, I want to see all my tasks in a organized list so that I can review and manage my workload",
+        "acceptance_criteria": [
+          "User sees list of all their tasks on dashboard",
+          "Tasks display title, due date, priority, and status",
+          "Tasks can be filtered by status (complete/incomplete)",
+          "Tasks can be sorted by due date or priority",
+          "User can mark tasks as complete/incomplete from list view"
+        ],
+        "priority": 2,
+        "estimated_effort": 5,
+        "dependencies": ["test-exec-12345_story_003"],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_005",
+        "title": "Project Organization",
+        "description": "As a user, I want to organize my tasks into projects so that I can group related work items together",
+        "acceptance_criteria": [
+          "User can create new projects with name and description",
+          "User can assign tasks to specific projects",
+          "User can view tasks filtered by project",
+          "Projects appear as separate sections in the dashboard",
+          "User can edit project details and delete empty projects"
+        ],
+        "priority": 3,
+        "estimated_effort": 8,
+        "dependencies": ["test-exec-12345_story_004"],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_006",
+        "title": "Team Collaboration",
+        "description": "As a project owner, I want to invite team members to collaborate on projects so that we can work together on shared tasks",
+        "acceptance_criteria": [
+          "Project owner can invite users by email address",
+          "Invited users receive email invitation with accept/decline options",
+          "Team members can view and edit shared project tasks",
+          "Task assignments can be made to specific team members",
+          "Team members receive notifications for task updates"
+        ],
+        "priority": 4,
+        "estimated_effort": 13,
+        "dependencies": ["test-exec-12345_story_005"],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_007",
+        "title": "Real-time Notifications",
+        "description": "As a team member, I want to receive real-time notifications about task updates so that I stay informed about project progress",
+        "acceptance_criteria": [
+          "Users receive browser notifications for task assignments",
+          "Users see in-app notifications for task comments and updates",
+          "Notification preferences can be configured by user",
+          "Notifications include task title and update description",
+          "Users can mark notifications as read/unread"
+        ],
+        "priority": 4,
+        "estimated_effort": 8,
+        "dependencies": ["test-exec-12345_story_006"],
+        "status": "pending",
+        "assigned_components": []
+      },
+      {
+        "story_id": "test-exec-12345_story_008",
+        "title": "Calendar Integration",
+        "description": "As a user, I want my task due dates to sync with my Google Calendar so that I can see deadlines alongside my other appointments",
+        "acceptance_criteria": [
+          "User can connect their Google Calendar account",
+          "Task due dates automatically create calendar events",
+          "Calendar events update when task due dates change",
+          "User can choose which projects sync to calendar",
+          "Integration works bidirectionally (calendar to tasks)"
+        ],
+        "priority": 5,
+        "estimated_effort": 13,
+        "dependencies": ["test-exec-12345_story_004"],
+        "status": "pending",
+        "assigned_components": []
+      }
+    ]
+  }
+}

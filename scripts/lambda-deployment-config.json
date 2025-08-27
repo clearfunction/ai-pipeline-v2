@@ -1,0 +1,99 @@
+{
+  "lambdas": {
+    "document-processor": {
+      "path": "lambdas/core/document-processor",
+      "deployment_method": "layer",
+      "uses_layers": true,
+      "layer_dependencies": ["requests", "boto3", "anthropic", "pydantic"],
+      "description": "Uses shared AI services and models layers"
+    },
+    "requirements-synthesizer": {
+      "path": "lambdas/core/requirements-synthesizer",
+      "deployment_method": "layer",
+      "uses_layers": true,
+      "layer_dependencies": ["requests", "boto3", "anthropic", "pydantic"],
+      "description": "Uses shared AI services and models layers"
+    },
+    "architecture-planner": {
+      "path": "lambdas/core/architecture-planner",
+      "deployment_method": "layer",
+      "uses_layers": true,
+      "layer_dependencies": ["requests", "boto3", "anthropic", "pydantic"],
+      "description": "Uses shared AI services and models layers"
+    },
+    "story-executor": {
+      "path": "lambdas/core/story-executor",
+      "deployment_method": "isolated",
+      "uses_layers": false,
+      "bundle_dependencies": true,
+      "description": "Isolated Lambda with its own dependencies"
+    },
+    "integration-validator": {
+      "path": "lambdas/story-execution/integration-validator",
+      "deployment_method": "isolated",
+      "uses_layers": false,
+      "bundle_dependencies": false,
+      "description": "Uses only standard library, no external dependencies"
+    },
+    "github-orchestrator": {
+      "path": "lambdas/story-execution/github-orchestrator",
+      "deployment_method": "cdk_bundled",
+      "uses_layers": false,
+      "bundle_dependencies": true,
+      "cdk_managed": true,
+      "warning": "DO NOT use deploy-single.sh for this Lambda! Use CDK deploy or deploy-github-orchestrator.sh",
+      "description": "CDK handles bundling with all dependencies. Manual deployment will break it."
+    },
+    "review-coordinator": {
+      "path": "lambdas/human-review/review-coordinator",
+      "deployment_method": "layer",
+      "uses_layers": true,
+      "layer_dependencies": ["requests", "boto3", "anthropic"],
+      "description": "Uses shared AI services and models layers"
+    },
+    "pr-status-checker": {
+      "path": "lambdas/human-review/pr-status-checker",
+      "deployment_method": "layer",
+      "uses_layers": true,
+      "layer_dependencies": ["requests", "boto3", "anthropic"],
+      "description": "Uses shared AI services and models layers"
+    }
+  },
+  "layers": {
+    "shared-models": {
+      "path": "shared-models-layer",
+      "description": "Contains shared data models and utilities (no external dependencies)"
+    },
+    "shared-ai-services": {
+      "path": "shared-ai-services-layer",
+      "description": "Contains AI service dependencies (requests, anthropic, boto3, pydantic)",
+      "dependencies": [
+        "boto3>=1.34.0",
+        "anthropic>=0.25.0",
+        "requests>=2.31.0",
+        "urllib3>=1.26.0",
+        "idna>=3.4",
+        "certifi>=2022.0.0",
+        "pydantic>=2.5.0",
+        "pypdf>=3.17.0"
+      ]
+    }
+  },
+  "deployment_methods": {
+    "layer": {
+      "description": "Lambda uses shared layers for dependencies",
+      "deployment_script": "deploy-single.sh",
+      "notes": "Dependencies are provided by Lambda layers, not bundled with function code"
+    },
+    "isolated": {
+      "description": "Lambda runs independently with or without its own dependencies",
+      "deployment_script": "deploy-single.sh",
+      "notes": "May bundle dependencies or use only standard library"
+    },
+    "cdk_bundled": {
+      "description": "CDK handles all bundling and deployment",
+      "deployment_script": "CDK ONLY - use 'npm run deploy-dev' in infrastructure/",
+      "notes": "Manual deployment will break this Lambda. Always use CDK."
+    }
+  }
+}

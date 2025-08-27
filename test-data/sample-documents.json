@@ -1,0 +1,25 @@
+{
+  "input_sources": [
+    {
+      "type": "text",
+      "path": "test-data/project-requirements.txt",
+      "content": "Build a modern task management application with the following features:\n\n1. User Authentication\n- Users should be able to register with email and password\n- Users should be able to log in and log out\n- Password reset functionality via email\n\n2. Task Management\n- Users can create, edit, and delete tasks\n- Tasks have title, description, due date, and priority\n- Tasks can be marked as complete or incomplete\n- Users can organize tasks into projects\n\n3. Collaboration\n- Users can share projects with other users\n- Team members can be assigned to specific tasks\n- Real-time notifications for task updates\n\n4. Dashboard\n- Overview of all tasks and projects\n- Calendar view of upcoming deadlines\n- Progress tracking and analytics\n\n5. Mobile Responsive\n- Application should work well on desktop and mobile devices\n- Clean, modern UI with intuitive navigation"
+    },
+    {
+      "type": "json_transcript",
+      "path": "test-data/meeting-transcript.json",
+      "content": "{\n  \"meeting_id\": \"proj-kickoff-001\",\n  \"date\": \"2024-01-15\",\n  \"participants\": [\"Product Manager\", \"Tech Lead\", \"Designer\"],\n  \"messages\": [\n    {\n      \"speaker\": \"Product Manager\",\n      \"timestamp\": \"10:00\",\n      \"text\": \"We need to build a task management app that competes with Todoist and Asana. The key differentiator will be our AI-powered task prioritization.\"\n    },\n    {\n      \"speaker\": \"Tech Lead\",\n      \"timestamp\": \"10:02\",\n      \"text\": \"I recommend using React for the frontend with a Node.js backend. We'll need real-time features, so WebSocket support is essential.\"\n    },\n    {\n      \"speaker\": \"Designer\",\n      \"timestamp\": \"10:05\",\n      \"text\": \"The UI should be clean and minimal. Think of a hybrid between Notion's simplicity and Linear's aesthetic. Dark mode is a must-have.\"\n    },\n    {\n      \"speaker\": \"Product Manager\",\n      \"timestamp\": \"10:10\",\n      \"text\": \"Timeline is 8 weeks for MVP. We need user auth, basic task CRUD, project organization, and team collaboration features.\"\n    },\n    {\n      \"speaker\": \"Tech Lead\",\n      \"timestamp\": \"10:15\",\n      \"text\": \"For the database, MongoDB would work well with our document-heavy data structure. We should also implement proper search functionality.\"\n    }\n  ]\n}"
+    },
+    {
+      "type": "email",
+      "path": "test-data/stakeholder-email.txt",
+      "content": "From: stakeholder@company.com\nTo: dev-team@company.com\nSubject: Additional Requirements for Task Management App\nDate: 2024-01-16\n\nHi Team,\n\nAfter reviewing the initial requirements, I have a few additional features that would be valuable:\n\n1. Integration with Google Calendar and Outlook for deadline syncing\n2. Time tracking functionality for billable hours\n3. File attachments on tasks (up to 10MB per file)\n4. Commenting system on tasks for team discussion\n5. Export functionality (PDF reports, CSV data)\n6. API access for third-party integrations\n\nPriority order:\n- High: Time tracking, Calendar integration\n- Medium: File attachments, Comments\n- Low: Export, API access\n\nPlease factor these into the architecture planning.\n\nBest regards,\nStakeholder"
+    }
+  ],
+  "project_id": "task-mgmt-app-001",
+  "metadata": {
+    "created_at": "2024-01-16T10:30:00Z",
+    "created_by": "test-user",
+    "project_type": "web_application"
+  }
+}

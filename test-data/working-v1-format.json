@@ -1,0 +1,24 @@
+{
+  "project_id": "modern-react-spa-v2-test",
+  "project_name": "modern-react-spa-v2",
+  "project_type": "single_react_app",
+  "preserve_user_tech_stack": true,
+  "tech_stack": {
+    "frontend": ["React", "TypeScript"],
+    "styling": ["CSS3", "Responsive Design"],
+    "build_tools": ["Vite"],
+    "deployment": ["Netlify"]
+  },
+  "api_spec": {
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Modern React SPA API",
+      "version": "1.0.0"
+    },
+    "paths": {}
+  },
+  "ui_mockups": [],
+  "technical_plan": "Create a modern React single-page application with TypeScript support using the v2 story-based approach. This will serve as a test for the new incremental development workflow.",
+  "requirements": "Build a modern task management React SPA using the new AI Pipeline v2 story-based generation system. Include proper component architecture, TypeScript support, and modern build tools.",
+  "github_username": "rakeshatcf"
+}

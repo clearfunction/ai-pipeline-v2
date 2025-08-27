@@ -1,0 +1,143 @@
+{
+  "architecturePlannerResult": {
+    "Payload": {
+      "status": "success",
+      "data": {
+        "user_stories": [
+          {
+            "story_id": "story_001",
+            "title": "User Authentication",
+            "description": "As a user, I want to authenticate securely so that I can access the system",
+            "acceptance_criteria": ["System implements user authentication", "Login form validates input", "User is redirected on success"],
+            "priority": 1,
+            "estimated_effort": 5,
+            "dependencies": [],
+            "status": "pending",
+            "assigned_components": ["comp_003", "comp_004"],
+            "created_at": "2025-08-22T18:30:20.000000"
+          },
+          {
+            "story_id": "story_002", 
+            "title": "Task Management",
+            "description": "As a user, I want to manage tasks so that I can track my work",
+            "acceptance_criteria": ["Users can create tasks", "Users can edit tasks", "Users can delete tasks", "Tasks have proper validation"],
+            "priority": 2,
+            "estimated_effort": 8,
+            "dependencies": [],
+            "status": "pending",
+            "assigned_components": ["comp_005", "comp_006"],
+            "created_at": "2025-08-22T18:30:20.000000"
+          },
+          {
+            "story_id": "story_003",
+            "title": "Dashboard View", 
+            "description": "As a user, I want to see a dashboard so that I can get an overview",
+            "acceptance_criteria": ["Dashboard shows task statistics", "Dashboard displays charts", "Dashboard loads quickly"],
+            "priority": 3,
+            "estimated_effort": 5,
+            "dependencies": ["story_001", "story_002"],
+            "status": "pending",
+            "assigned_components": ["comp_007"],
+            "created_at": "2025-08-22T18:30:20.000000"
+          }
+        ],
+        "architecture": {
+          "project_id": "multi-story-test-project",
+          "name": "multi-story-test-project",
+          "tech_stack": "react_fullstack",
+          "components": [
+            {
+              "component_id": "comp_001",
+              "name": "App",
+              "type": "component",
+              "file_path": "src/App.tsx",
+              "dependencies": [],
+              "exports": ["App"],
+              "story_ids": [],
+              "created_at": "2025-08-22T18:30:20.000000"
+            },
+            {
+              "component_id": "comp_002",
+              "name": "Layout",
+              "type": "component", 
+              "file_path": "src/components/Layout.tsx",
+              "dependencies": [],
+              "exports": ["Layout"],
+              "story_ids": [],
+              "created_at": "2025-08-22T18:30:20.000000"
+            },
+            {
+              "component_id": "comp_003",
+              "name": "LoginPage",
+              "type": "page",
+              "file_path": "src/pages/LoginPage.tsx",
+              "dependencies": ["AuthService"],
+              "exports": ["LoginPage"],
+              "story_ids": ["story_001"],
+              "created_at": "2025-08-22T18:30:20.000000"
+            },
+            {
+              "component_id": "comp_004",
+              "name": "AuthService",
+              "type": "service",
+              "file_path": "src/services/AuthService.ts",
+              "dependencies": [],
+              "exports": ["AuthService", "useAuth"],
+              "story_ids": ["story_001"],
+              "created_at": "2025-08-22T18:30:20.000000"
+            },
+            {
+              "component_id": "comp_005",
+              "name": "TaskList",
+              "type": "component",
+              "file_path": "src/components/TaskList.tsx", 
+              "dependencies": ["TaskService"],
+              "exports": ["TaskList"],
+              "story_ids": ["story_002"],
+              "created_at": "2025-08-22T18:30:20.000000"
+            },
+            {
+              "component_id": "comp_006",
+              "name": "TaskService",
+              "type": "service",
+              "file_path": "src/services/TaskService.ts",
+              "dependencies": [],
+              "exports": ["TaskService"],
+              "story_ids": ["story_002"],
+              "created_at": "2025-08-22T18:30:20.000000"
+            },
+            {
+              "component_id": "comp_007",
+              "name": "Dashboard",
+              "type": "page",
+              "file_path": "src/pages/Dashboard.tsx",
+              "dependencies": ["TaskList"],
+              "exports": ["Dashboard"],
+              "story_ids": ["story_003"],
+              "created_at": "2025-08-22T18:30:20.000000"
+            }
+          ],
+          "dependencies": {
+            "react": "^18.2.0",
+            "react-dom": "^18.2.0",
+            "express": "^4.18.2",
+            "typescript": "^5.0.0"
+          },
+          "build_config": {
+            "package_manager": "npm",
+            "build_command": "npm run build",
+            "dev_command": "npm run dev",
+            "test_command": "npm test",
+            "bundler": "vite"
+          },
+          "created_at": "2025-08-22T18:30:20.000000"
+        },
+        "pipeline_context": {
+          "execution_id": "multi_story_test_20250822_183020",
+          "project_id": "multi-story-test-project",
+          "stage": "architecture_planning"
+        }
+      }
+    }
+  }
+}

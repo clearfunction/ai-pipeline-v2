@@ -1,0 +1,31 @@
+{
+  "name": "ai-pipeline-v2-infrastructure",
+  "version": "1.0.0",
+  "description": "Infrastructure as Code for AI Pipeline Orchestrator v2",
+  "main": "bin/ai-pipeline-v2.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "deploy-dev": "cdk deploy --context environment=dev",
+    "deploy-prod": "cdk deploy --context environment=prod",
+    "destroy": "cdk destroy",
+    "synth": "cdk synth",
+    "diff": "cdk diff"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.5",
+    "@types/node": "20.6.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "typescript": "~5.2.2"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.100.0",
+    "constructs": "^10.0.0"
+  },
+  "author": "AI Pipeline Team",
+  "license": "MIT"
+}

@@ -1,0 +1,40 @@
+{
+  "storyExecutorResult": {
+    "Payload": {
+      "status": "success",
+      "data": {
+        "generated_files": [
+          {
+            "file_path": "package.json",
+            "content": "{\"name\": \"netlify-fix-test\", \"scripts\": {\"build\": \"npm run build\", \"test\": \"npm test\"}, \"dependencies\": {\"react\": \"^18.2.0\"}}",
+            "component_id": "project_scaffold"
+          },
+          {
+            "file_path": "src/App.jsx",
+            "content": "import React from 'react';\n\nfunction App() {\n  return <div>Hello World - Netlify Fix Test</div>;\n}\n\nexport default App;",
+            "component_id": "app_component"
+          }
+        ],
+        "stories_completed": 1,
+        "project_context": {
+          "project_id": "netlify-fix-test"
+        },
+        "architecture": {
+          "tech_stack": "react_spa",
+          "project_id": "netlify-fix-test"
+        }
+      }
+    }
+  },
+  "integrationValidatorResult": {
+    "Payload": {
+      "status": "success",
+      "data": {
+        "validation_summary": {
+          "validation_passed": true,
+          "components_validated": 1
+        }
+      }
+    }
+  }
+}

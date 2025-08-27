@@ -1,0 +1,1 @@
+# Story executor lambda

@@ -1,0 +1,31 @@
+{
+  "githubOrchestratorResult": {
+    "Payload": {
+      "status": "success",
+      "data": {
+        "repository_info": {
+          "id": 12345,
+          "name": "test-project", 
+          "full_name": "testuser/test-project",
+          "html_url": "https://github.com/testuser/test-project"
+        },
+        "pr_info": {
+          "id": 1,
+          "number": 1,
+          "html_url": "https://github.com/testuser/test-project/pull/1",
+          "title": "feat: AI-generated implementation for test-project",
+          "body": "AI-generated code for testing Claude Code review functionality"
+        },
+        "workflow_run": {
+          "id": "run_001",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      }
+    }
+  },
+  "test_config": {
+    "description": "Test PR Status Checker with Claude Code review",
+    "expected_behavior": "Should check PR status, perform Claude review, and potentially auto-merge if enabled"
+  }
+}
