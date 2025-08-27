@@ -23,7 +23,6 @@ class NodeAPITemplateGenerator(BaseTemplateGenerator):
         # Generate all scaffold files
         templates = {
             'package.json': self._get_package_json(project_name),
-            'package-lock.json': self._get_package_lock_json(project_name),
             'tsconfig.json': self._get_tsconfig(),
             '.gitignore': self._get_gitignore(),
             'README.md': self._get_readme(project_name),
@@ -121,10 +120,10 @@ class NodeAPITemplateGenerator(BaseTemplateGenerator):
     "@typescript-eslint/parser": "^7.3.1",
     "artillery": "^2.0.4",
     "eslint": "^8.57.0",
-    "jest": "^29.7.0",
+    "jest": "29.7.0",
     "nodemon": "^3.1.0",
     "supertest": "^6.3.4",
-    "ts-jest": "^29.1.2",
+    "ts-jest": "29.1.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.2"
   }},
@@ -134,34 +133,10 @@ class NodeAPITemplateGenerator(BaseTemplateGenerator):
   }}
 }}'''
     
-    def _get_package_lock_json(self, project_name: str) -> str:
-        """Generate basic package-lock.json structure."""
-        return f'''{{
-  "name": "{project_name}",
-  "version": "1.0.0",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {{
-    "": {{
-      "name": "{project_name}",
-      "version": "1.0.0",
-      "license": "MIT",
-      "dependencies": {{
-        "fastify": "^4.26.2",
-        "dotenv": "^16.4.5"
-      }},
-      "devDependencies": {{
-        "@types/node": "^20.11.30",
-        "typescript": "^5.4.2",
-        "jest": "^29.7.0"
-      }},
-      "engines": {{
-        "node": ">=18.0.0",
-        "npm": ">=9.0.0"
-      }}
-    }}
-  }}
-}}'''
+    # Removed stub package-lock.json generation - will be created by npm install
+    # def _get_package_lock_json(self, project_name: str) -> str:
+    #     """Generate basic package-lock.json structure."""
+    #     # This was causing npm ci failures because it didn't contain actual dependency resolution
     
     def _get_tsconfig(self) -> str:
         """Generate TypeScript configuration."""

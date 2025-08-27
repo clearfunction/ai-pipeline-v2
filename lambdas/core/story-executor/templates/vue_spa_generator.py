@@ -23,7 +23,6 @@ class VueSPATemplateGenerator(BaseTemplateGenerator):
         # Generate all scaffold files
         templates = {
             'package.json': self._get_package_json(project_name),
-            'package-lock.json': self._get_package_lock_json(project_name),
             'vite.config.ts': self._get_vite_config(),
             'tsconfig.json': self._get_tsconfig(),
             'tsconfig.app.json': self._get_tsconfig_app(),
@@ -103,7 +102,7 @@ class VueSPATemplateGenerator(BaseTemplateGenerator):
     "@vitejs/plugin-vue": "^5.0.4",
     "@vue/eslint-config-prettier": "^8.0.0",
     "@vue/eslint-config-typescript": "^12.0.0",
-    "@vue/test-utils": "^2.4.4",
+    "@vue/test-utils": "2.4.4",
     "@vue/tsconfig": "^0.5.1",
     "axe-core": "^4.8.4",
     "eslint": "^8.57.0",
@@ -116,35 +115,16 @@ class VueSPATemplateGenerator(BaseTemplateGenerator):
     "typescript": "~5.4.0",
     "vite": "^5.1.6",
     "vite-bundle-analyzer": "^0.7.0",
-    "vitest": "^1.4.0",
+    "vitest": "1.4.0",
     "@vitest/coverage-v8": "^1.4.0",
     "vue-tsc": "^2.0.6"
   }}
 }}'''
     
-    def _get_package_lock_json(self, project_name: str) -> str:
-        """Generate basic package-lock.json structure."""
-        return f'''{{
-  "name": "{project_name}",
-  "version": "0.0.1",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {{
-    "": {{
-      "name": "{project_name}",
-      "version": "0.0.1",
-      "dependencies": {{
-        "vue": "^3.4.21"
-      }},
-      "devDependencies": {{
-        "@vitejs/plugin-vue": "^5.0.4",
-        "typescript": "~5.4.0",
-        "vite": "^5.1.6",
-        "vitest": "^1.4.0"
-      }}
-    }}
-  }}
-}}'''
+    # Removed stub package-lock.json generation - will be created by npm install
+    # def _get_package_lock_json(self, project_name: str) -> str:
+    #     """Generate basic package-lock.json structure."""
+    #     # This was causing npm ci failures because it didn't contain actual dependency resolution
     
     def _get_vite_config(self) -> str:
         """Generate Vite configuration."""

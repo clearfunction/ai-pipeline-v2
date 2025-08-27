@@ -35,15 +35,9 @@ if [ ! -d "$LAMBDA_DIR" ]; then
     exit 1
 fi
 
-# Confirmation prompt
-echo -e "${YELLOW}You are about to deploy GitHub Orchestrator with bundled dependencies.${NC}"
-echo -e "${YELLOW}This will override any CDK deployment.${NC}"
-read -p "Are you sure you want to continue? (y/N) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo -e "${RED}Deployment cancelled.${NC}"
-    exit 1
-fi
+# Auto-proceed without confirmation (removed for faster deployments)
+echo -e "${YELLOW}Deploying GitHub Orchestrator with bundled dependencies.${NC}"
+echo -e "${YELLOW}Note: This will override any CDK deployment.${NC}"
 
 echo -e "${GREEN}Deploying GitHub Orchestrator Lambda${NC}"
 echo -e "${YELLOW}Environment: $ENVIRONMENT${NC}"

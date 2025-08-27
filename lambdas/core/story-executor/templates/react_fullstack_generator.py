@@ -24,7 +24,6 @@ class ReactFullstackTemplateGenerator(BaseTemplateGenerator):
         # Root-level files
         root_files = {
             'package.json': self._get_root_package_json(project_name),
-            'package-lock.json': self._get_root_package_lock_json(project_name),
             'tsconfig.json': self._get_root_tsconfig(),
             'docker-compose.yml': self._get_docker_compose(),
             '.gitignore': self._get_gitignore(),
@@ -158,33 +157,10 @@ class ReactFullstackTemplateGenerator(BaseTemplateGenerator):
   }}
 }}'''
 
-    def _get_root_package_lock_json(self, project_name: str) -> str:
-        """Generate minimal package-lock.json for npm workspaces."""
-        return f'''{{
-  "name": "{project_name}",
-  "version": "1.0.0",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {{
-    "": {{
-      "name": "{project_name}",
-      "version": "1.0.0",
-      "workspaces": [
-        "client",
-        "server",
-        "shared"
-      ],
-      "devDependencies": {{
-        "concurrently": "^8.2.2",
-        "@types/node": "^20.11.24"
-      }},
-      "engines": {{
-        "node": ">=18.0.0",
-        "npm": ">=9.0.0"
-      }}
-    }}
-  }}
-}}'''
+    # Removed stub package-lock.json generation - will be created by npm install
+    # def _get_root_package_lock_json(self, project_name: str) -> str:
+    #     """Generate minimal package-lock.json for npm workspaces."""
+    #     # This was causing npm ci failures because it didn't contain actual dependency resolution
 
     def _get_root_tsconfig(self) -> str:
         """Generate root tsconfig.json."""
@@ -465,10 +441,10 @@ CLIENT_URL=http://localhost:5173
     "tailwindcss": "^3.4.1",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
-    "vitest": "^1.4.0",
-    "@testing-library/react": "^14.2.1",
-    "@testing-library/jest-dom": "^6.4.2",
-    "@testing-library/user-event": "^14.5.2",
+    "vitest": "1.4.0",
+    "@testing-library/react": "14.2.1",
+    "@testing-library/jest-dom": "6.4.2",
+    "@testing-library/user-event": "14.5.2",
     "jsdom": "^24.0.0"
   }}
 }}'''

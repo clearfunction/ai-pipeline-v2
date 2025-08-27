@@ -23,7 +23,6 @@ class ReactSPATemplateGenerator(BaseTemplateGenerator):
         # Generate all scaffold files
         templates = {
             'package.json': self._get_package_json(project_name),
-            'package-lock.json': self._get_package_lock_json(project_name),
             'vite.config.ts': self._get_vite_config(),
             'tsconfig.json': self._get_tsconfig(),
             'tsconfig.node.json': self._get_tsconfig_node(),
@@ -92,39 +91,19 @@ class ReactSPATemplateGenerator(BaseTemplateGenerator):
     "eslint-plugin-react-refresh": "^0.4.6",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
-    "vitest": "^1.4.0",
+    "vitest": "1.4.0",
     "@vitest/coverage-v8": "^1.4.0",
-    "@testing-library/react": "^14.2.1",
-    "@testing-library/jest-dom": "^6.4.2",
-    "@testing-library/user-event": "^14.5.2",
+    "@testing-library/react": "14.2.1",
+    "@testing-library/jest-dom": "6.4.2",
+    "@testing-library/user-event": "14.5.2",
     "jsdom": "^24.0.0"
   }}
 }}'''
     
-    def _get_package_lock_json(self, project_name: str) -> str:
-        """Generate basic package-lock.json structure."""
-        return f'''{{
-  "name": "{project_name}",
-  "version": "0.0.1",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {{
-    "": {{
-      "name": "{project_name}",
-      "version": "0.0.1",
-      "dependencies": {{
-        "react": "^18.2.0",
-        "react-dom": "^18.2.0"
-      }},
-      "devDependencies": {{
-        "@vitejs/plugin-react": "^4.2.1",
-        "typescript": "^5.2.2",
-        "vite": "^5.2.0",
-        "vitest": "^1.4.0"
-      }}
-    }}
-  }}
-}}'''
+    # Removed stub package-lock.json generation - will be created by npm install
+    # def _get_package_lock_json(self, project_name: str) -> str:
+    #     """Generate basic package-lock.json structure."""
+    #     # This was causing npm ci failures because it didn't contain actual dependency resolution
     
     def _get_vite_config(self) -> str:
         """Generate Vite configuration."""
