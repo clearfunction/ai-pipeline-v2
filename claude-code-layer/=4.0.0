@@ -1,0 +1,13 @@
+Collecting claude-code-sdk==0.0.20
+  Downloading claude_code_sdk-0.0.20-py3-none-any.whl.metadata (4.4 kB)
+Collecting anyio
+  Downloading anyio-4.10.0-py3-none-any.whl.metadata (4.0 kB)
+Collecting typing-extensions
+  Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+Downloading claude_code_sdk-0.0.20-py3-none-any.whl (17 kB)
+Downloading anyio-4.10.0-py3-none-any.whl (107 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 107.2/107.2 kB 2.5 MB/s eta 0:00:00
+Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.6/44.6 kB 5.8 MB/s eta 0:00:00
+Installing collected packages: typing-extensions, claude-code-sdk, anyio
+Successfully installed anyio-4.10.0 claude-code-sdk-0.0.20 typing-extensions-4.15.0

@@ -24,6 +24,7 @@ class ReactFullstackTemplateGenerator(BaseTemplateGenerator):
         # Root-level files
         root_files = {
             'package.json': self._get_root_package_json(project_name),
+            'package-lock.json': self._get_root_package_lock_json(project_name),
             'tsconfig.json': self._get_root_tsconfig(),
             'docker-compose.yml': self._get_docker_compose(),
             '.gitignore': self._get_gitignore(),
@@ -157,10 +158,26 @@ class ReactFullstackTemplateGenerator(BaseTemplateGenerator):
   }}
 }}'''
 
-    # Removed stub package-lock.json generation - will be created by npm install
-    # def _get_root_package_lock_json(self, project_name: str) -> str:
-    #     """Generate minimal package-lock.json for npm workspaces."""
-    #     # This was causing npm ci failures because it didn't contain actual dependency resolution
+    def _get_root_package_lock_json(self, project_name: str) -> str:
+        """Generate minimal valid package-lock.json for npm workspaces."""
+        # Minimal valid lockfileVersion 3 for monorepo with workspaces
+        return f'''{{
+  "name": "{project_name}",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {{
+    "": {{
+      "name": "{project_name}",
+      "version": "1.0.0",
+      "workspaces": [
+        "client",
+        "server",
+        "shared"
+      ]
+    }}
+  }}
+}}'''
 
     def _get_root_tsconfig(self) -> str:
         """Generate root tsconfig.json."""

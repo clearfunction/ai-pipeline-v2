@@ -1,0 +1,37 @@
+{
+  "architecturePlannerResult": {
+    "Payload": {
+      "data": {
+        "architecture": {
+          "project_id": "ai-test-fixed",
+          "name": "AI Generation Test Fixed",
+          "tech_stack": "react_fullstack",
+          "components": [],
+          "dependencies": {"react": "^18.2.0", "express": "^4.18.2"},
+          "build_config": {"package_manager": "npm", "bundler": "vite"},
+          "user_stories": [
+            {
+              "story_id": "story-001",
+              "title": "Simple React Component",
+              "description": "Create a simple welcome component with a greeting message",
+              "acceptance_criteria": [
+                "Component displays a welcome message",
+                "Component accepts a name prop",
+                "Component uses TypeScript"
+              ],
+              "priority": 1,
+              "estimated_effort": 3,
+              "dependencies": [],
+              "status": "PENDING",
+              "assigned_components": []
+            }
+          ]
+        },
+        "pipeline_context": {
+          "project_id": "ai-test-fixed",
+          "stage": "story_execution"
+        }
+      }
+    }
+  }
+}
