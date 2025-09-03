@@ -34,12 +34,32 @@
     },
     "story-executor-python": {
       "path": "lambdas/core/story-executor",
-      "deployment_method": "isolated",
+      "deployment_method": "layer",
       "runtime": "python3.11",
-      "uses_layers": false,
-      "bundle_dependencies": true,
-      "deprecated": true,
-      "description": "Legacy Python Lambda with template fallbacks (replaced by Node.js version)"
+      "uses_layers": true,
+      "layer_dependencies": ["requests", "boto3", "anthropic", "pydantic"],
+      "bundle_dependencies": false,
+      "description": "Refactored Python Lambda for sequential story processing"
+    },
+    "story-validator": {
+      "path": "lambdas/story-execution/story-validator",
+      "deployment_method": "layer",
+      "runtime": "python3.11",
+      "uses_layers": true,
+      "layer_dependencies": ["boto3"],
+      "bundle_dependencies": false,
+      "cdk_managed": true,
+      "description": "Validates individual story output immediately after generation"
+    },
+    "build-orchestrator": {
+      "path": "lambdas/story-execution/build-orchestrator",
+      "deployment_method": "layer",
+      "runtime": "python3.11",
+      "uses_layers": true,
+      "layer_dependencies": ["boto3", "docker"],
+      "bundle_dependencies": false,
+      "cdk_managed": true,
+      "description": "Executes incremental builds in isolated environments"
     },
     "integration-validator": {
       "path": "lambdas/story-execution/integration-validator",

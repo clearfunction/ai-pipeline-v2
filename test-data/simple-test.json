@@ -1,0 +1,35 @@
+{
+  "execution_id": "test-sequential-${timestamp}",
+  "project_name": "simple-todo-app",
+  "project_description": "A simple todo application to test the sequential pipeline",
+  "operation_mode": "sequential_execution",
+  "data": {
+    "user_stories": [
+      {
+        "story_id": "story-001",
+        "title": "Create Basic Todo List",
+        "description": "As a user, I want to see a list of todos",
+        "acceptance_criteria": [
+          "Display a list of todo items",
+          "Show todo title and status"
+        ],
+        "priority": 1,
+        "dependencies": []
+      }
+    ],
+    "architecture": {
+      "project_id": "simple-todo-app",
+      "tech_stack": "react_spa",
+      "framework": "React",
+      "dependencies": {
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+      }
+    },
+    "pipeline_context": {
+      "project_id": "simple-todo-app",
+      "execution_id": "test-exec-${timestamp}",
+      "environment": "dev"
+    }
+  }
+}

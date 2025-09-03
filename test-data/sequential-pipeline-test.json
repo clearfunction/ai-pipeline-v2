@@ -1,0 +1,74 @@
+{
+  "execution_id": "test-sequential-${timestamp}",
+  "project_name": "test-sequential-app",
+  "project_description": "Test application for sequential story processing with per-story validation",
+  "architecture": {
+    "frontend": "react",
+    "backend": "nodejs",
+    "database": "postgresql",
+    "deployment": {
+      "frontend": "netlify",
+      "backend": "ecs-fargate"
+    }
+  },
+  "user_stories": [
+    {
+      "id": "story-001",
+      "title": "User Authentication",
+      "description": "As a user, I want to register and login to the application",
+      "acceptance_criteria": [
+        "User can register with email and password",
+        "User can login with credentials",
+        "JWT tokens are properly handled"
+      ],
+      "priority": 1,
+      "dependencies": []
+    },
+    {
+      "id": "story-002",
+      "title": "User Profile",
+      "description": "As a user, I want to view and edit my profile",
+      "acceptance_criteria": [
+        "User can view profile information",
+        "User can update profile fields",
+        "Profile changes are persisted"
+      ],
+      "priority": 2,
+      "dependencies": ["story-001"]
+    },
+    {
+      "id": "story-003",
+      "title": "Dashboard",
+      "description": "As a user, I want to see a personalized dashboard",
+      "acceptance_criteria": [
+        "Dashboard shows user-specific data",
+        "Dashboard updates in real-time",
+        "Dashboard is responsive"
+      ],
+      "priority": 3,
+      "dependencies": ["story-001", "story-002"]
+    }
+  ],
+  "validation_config": {
+    "enable_syntax_check": true,
+    "enable_type_check": true,
+    "enable_dependency_check": true,
+    "enable_integration_check": true,
+    "enable_build_validation": true,
+    "enable_auto_fix": true,
+    "max_fix_attempts": 2
+  },
+  "github_config": {
+    "create_repository": true,
+    "repository_name": "test-sequential-app",
+    "branch_name": "main",
+    "enable_actions": true,
+    "enable_pr_reviews": false,
+    "auto_merge": false
+  },
+  "deployment_config": {
+    "auto_deploy": false,
+    "environment": "dev",
+    "enable_monitoring": true
+  }
+}
