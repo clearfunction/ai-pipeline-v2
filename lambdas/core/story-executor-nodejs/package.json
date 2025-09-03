@@ -1,0 +1,20 @@
+{
+  "name": "ai-pipeline-story-executor",
+  "version": "1.0.0",
+  "description": "Story executor Lambda using Claude Code SDK for AI-driven code generation",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@anthropic-ai/claude-code": "latest",
+    "@anthropic-ai/sdk": "^0.60.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "author": "AI Pipeline Team",
+  "license": "MIT"
+}

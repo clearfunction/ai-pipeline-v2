@@ -25,7 +25,8 @@ get_lambda_path() {
         "document-processor") echo "lambdas/core/document-processor" ;;
         "requirements-synthesizer") echo "lambdas/core/requirements-synthesizer" ;;
         "architecture-planner") echo "lambdas/core/architecture-planner" ;;
-        "story-executor") echo "lambdas/core/story-executor" ;;
+        "story-executor") echo "lambdas/core/story-executor-nodejs" ;;  # Updated to Node.js version
+        "story-executor-python") echo "lambdas/core/story-executor" ;;  # Keep old Python version accessible
         "s3-trigger") echo "lambdas/core/s3-trigger" ;;
         "integration-validator") echo "lambdas/story-execution/integration-validator" ;;
         "github-orchestrator") echo "lambdas/story-execution/github-orchestrator" ;;
@@ -188,8 +189,34 @@ elif [ "$USES_LAYERS" = true ] && [ -f "$PACKAGE_DIR/requirements.txt" ]; then
     PACKAGE_ZIP="$TEMP_DIR/${FUNCTION_NAME}.zip"
     zip -r "$PACKAGE_ZIP" . > /dev/null
     echo -e "${YELLOW}Layer-aware package created${NC}"
+elif [ -f "$PACKAGE_DIR/package.json" ]; then
+    # Node.js lambda - install npm dependencies
+    echo -e "${YELLOW}Node.js Lambda detected - installing npm dependencies...${NC}"
+    
+    cd "$PACKAGE_DIR"
+    
+    # Check if package-lock.json exists for faster CI installation
+    if [ -f "package-lock.json" ]; then
+        echo -e "${YELLOW}Using npm ci for faster installation...${NC}"
+        npm ci --production
+    else
+        echo -e "${YELLOW}Installing dependencies with npm install...${NC}"
+        npm install --production
+    fi
+    
+    # Remove unnecessary files to reduce package size
+    find . -type d -name ".git" -exec rm -rf {} + 2>/dev/null || true
+    find . -name "*.md" -not -name "README.md" -delete 2>/dev/null || true
+    find . -name "*.test.js" -delete 2>/dev/null || true
+    find . -name "*.spec.js" -delete 2>/dev/null || true
+    rm -rf test/ tests/ docs/ .github/ 2>/dev/null || true
+    
+    # Create deployment zip
+    PACKAGE_ZIP="$TEMP_DIR/${FUNCTION_NAME}.zip"
+    zip -r "$PACKAGE_ZIP" . > /dev/null
+    echo -e "${YELLOW}Node.js package created${NC}"
 elif [ -f "$PACKAGE_DIR/requirements.txt" ]; then
-    # Standard lambda without layers - install all dependencies
+    # Standard Python lambda without layers - install all dependencies
     echo -e "${YELLOW}Installing Python dependencies locally...${NC}"
     
     cd "$PACKAGE_DIR"
@@ -209,8 +236,8 @@ elif [ -f "$PACKAGE_DIR/requirements.txt" ]; then
     zip -r "$PACKAGE_ZIP" . > /dev/null
     echo -e "${YELLOW}Full package created${NC}"
 else
-    # No requirements.txt, create a simple zip
-    echo -e "${YELLOW}No requirements.txt found, creating simple zip package...${NC}"
+    # No requirements.txt or package.json, create a simple zip
+    echo -e "${YELLOW}No requirements.txt or package.json found, creating simple zip package...${NC}"
     PACKAGE_ZIP="$TEMP_DIR/${FUNCTION_NAME}.zip"
     cd "$PACKAGE_DIR"
     zip -r "$PACKAGE_ZIP" . > /dev/null

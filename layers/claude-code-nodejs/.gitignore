@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+nodejs/
+
+# Build artifacts
+*.zip
+
+# Package lock files
+package-lock.json
+yarn.lock
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

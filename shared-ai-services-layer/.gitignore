@@ -1,0 +1,20 @@
+# Build artifacts
+shared-ai-services-layer.zip
+build-metadata.json
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

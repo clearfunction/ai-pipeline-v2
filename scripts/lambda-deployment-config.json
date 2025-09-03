@@ -22,11 +22,24 @@
       "description": "Uses shared AI services and models layers"
     },
     "story-executor": {
+      "path": "lambdas/core/story-executor-nodejs",
+      "deployment_method": "cdk_bundled",
+      "runtime": "nodejs22.x",
+      "uses_layers": true,
+      "layer_dependencies": ["claude-code-nodejs"],
+      "bundle_dependencies": false,
+      "cdk_managed": true,
+      "warning": "Node.js Lambda with Claude Code layer - use CDK deployment only",
+      "description": "Node.js Lambda that uses Claude Code SDK via Lambda layer for AI code generation"
+    },
+    "story-executor-python": {
       "path": "lambdas/core/story-executor",
       "deployment_method": "isolated",
+      "runtime": "python3.11",
       "uses_layers": false,
       "bundle_dependencies": true,
-      "description": "Isolated Lambda with its own dependencies"
+      "deprecated": true,
+      "description": "Legacy Python Lambda with template fallbacks (replaced by Node.js version)"
     },
     "integration-validator": {
       "path": "lambdas/story-execution/integration-validator",
@@ -76,6 +89,15 @@
         "certifi>=2022.0.0",
         "pydantic>=2.5.0",
         "pypdf>=3.17.0"
+      ]
+    },
+    "claude-code-nodejs": {
+      "path": "layers/claude-code-nodejs",
+      "runtime": "nodejs22.x",
+      "description": "Claude Code SDK and dependencies for Node.js Lambda functions",
+      "dependencies": [
+        "@anthropic-ai/claude-code@latest",
+        "@anthropic-ai/sdk@^0.60.0"
       ]
     }
   },

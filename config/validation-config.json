@@ -1,0 +1,187 @@
+{
+  "sequential_processing": {
+    "enabled": true,
+    "checkpoint_after_each_story": true,
+    "rollback_on_failure": true,
+    "max_stories_per_execution": 20,
+    "story_timeout_seconds": 300,
+    "validation_timeout_seconds": 120
+  },
+  
+  "validation_rules": {
+    "syntax_check": {
+      "enabled": true,
+      "blocking": true,
+      "auto_fix": true
+    },
+    "type_check": {
+      "enabled": true,
+      "blocking": true,
+      "auto_fix": true,
+      "strict_mode": false
+    },
+    "import_validation": {
+      "enabled": true,
+      "blocking": true,
+      "auto_fix": true,
+      "check_circular": true
+    },
+    "build_validation": {
+      "enabled": true,
+      "blocking": true,
+      "auto_fix": false,
+      "optimize": false
+    },
+    "test_execution": {
+      "enabled": false,
+      "blocking": false,
+      "auto_fix": false,
+      "coverage_threshold": 0
+    },
+    "lint_check": {
+      "enabled": true,
+      "blocking": false,
+      "auto_fix": true,
+      "rules": "recommended"
+    }
+  },
+  
+  "auto_fix": {
+    "enabled": true,
+    "max_attempts_per_story": 3,
+    "max_attempts_per_error": 2,
+    "timeout_seconds": 60,
+    "strategies": {
+      "missing_import": {
+        "strategy": "add_import",
+        "priority": 1,
+        "enabled": true
+      },
+      "undefined_variable": {
+        "strategy": "declare_variable",
+        "priority": 2,
+        "enabled": true
+      },
+      "type_error": {
+        "strategy": "fix_type",
+        "priority": 3,
+        "enabled": true
+      },
+      "missing_dependency": {
+        "strategy": "add_to_package_json",
+        "priority": 1,
+        "enabled": true
+      },
+      "syntax_error": {
+        "strategy": "ai_fix",
+        "priority": 1,
+        "enabled": true
+      },
+      "dependency_conflict": {
+        "strategy": "resolve_version",
+        "priority": 2,
+        "enabled": true
+      }
+    },
+    "llm_config": {
+      "model": "claude-3-sonnet",
+      "temperature": 0.2,
+      "max_tokens": 4000,
+      "retry_on_error": true
+    }
+  },
+  
+  "context_management": {
+    "max_context_size_mb": 10,
+    "compress_after_stories": 5,
+    "preserve_core_files": true,
+    "core_files": [
+      "package.json",
+      "tsconfig.json",
+      "vite.config.ts",
+      "webpack.config.js",
+      ".env",
+      "src/App.tsx",
+      "src/main.tsx",
+      "src/index.tsx"
+    ],
+    "context_compression": {
+      "enabled": true,
+      "strategy": "summarize",
+      "keep_exports": true,
+      "keep_imports": true,
+      "remove_comments": true
+    }
+  },
+  
+  "error_handling": {
+    "max_errors_to_report": 10,
+    "group_similar_errors": true,
+    "prioritize_blocking_errors": true,
+    "error_categories": {
+      "critical": ["syntax_error", "missing_module", "build_failure"],
+      "high": ["type_error", "import_error", "undefined_variable"],
+      "medium": ["lint_warning", "unused_variable", "missing_type"],
+      "low": ["style_issue", "console_log", "todo_comment"]
+    }
+  },
+  
+  "checkpoint_management": {
+    "enabled": true,
+    "storage_location": "s3",
+    "retention_days": 30,
+    "checkpoint_after": {
+      "successful_story": true,
+      "successful_fix": true,
+      "validation_pass": true
+    },
+    "rollback_triggers": {
+      "max_consecutive_failures": 2,
+      "critical_error": true,
+      "timeout": true
+    }
+  },
+  
+  "build_optimization": {
+    "cache_node_modules": true,
+    "parallel_jobs": 4,
+    "use_npm_ci": true,
+    "skip_optional_dependencies": true,
+    "prefer_offline": true
+  },
+  
+  "monitoring": {
+    "metrics_enabled": true,
+    "log_level": "INFO",
+    "detailed_error_logging": true,
+    "performance_tracking": true,
+    "cloudwatch_namespace": "AIPipeline/Validation"
+  },
+  
+  "tech_stack_specific": {
+    "react_spa": {
+      "test_framework": "jest",
+      "build_tool": "vite",
+      "type_checking": "typescript",
+      "style_linting": "eslint"
+    },
+    "react_fullstack": {
+      "test_framework": "jest",
+      "build_tool": "vite",
+      "type_checking": "typescript",
+      "monorepo_tool": "npm-workspaces"
+    },
+    "vue_spa": {
+      "test_framework": "vitest",
+      "build_tool": "vite",
+      "type_checking": "typescript",
+      "style_linting": "eslint"
+    },
+    "node_api": {
+      "test_framework": "jest",
+      "build_tool": "tsc",
+      "type_checking": "typescript",
+      "api_validation": "openapi"
+    }
+  }
+}

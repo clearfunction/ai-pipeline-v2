@@ -1,0 +1,15 @@
+{
+  "name": "claude-code-layer",
+  "version": "1.0.0",
+  "description": "Claude Code SDK layer for AWS Lambda functions",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/claude-code": "latest",
+    "@anthropic-ai/sdk": "^0.60.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "author": "AI Pipeline Team",
+  "license": "MIT"
+}

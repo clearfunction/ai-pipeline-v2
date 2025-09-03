@@ -1,0 +1,48 @@
+{
+  "statusCode": 200,
+  "status": "success",
+  "execution_id": "story_exec_test_coach",
+  "stage": "story_execution", 
+  "project_id": "coach-connect-app",
+  "data": {
+    "generated_files": [
+      {
+        "file_path": "package.json",
+        "component_id": "comp_001",
+        "story_id": "story_001",
+        "file_type": "config",
+        "language": "json",
+        "content": "{\"name\":\"player-profile-system\",\"version\":\"1.0.0\",\"scripts\":{\"start\":\"react-scripts start\",\"build\":\"react-scripts build\",\"test\":\"react-scripts test\"},\"dependencies\":{\"react\":\"^18.2.0\",\"react-dom\":\"^18.2.0\"}}"
+      },
+      {
+        "file_path": "src/components/PlayerProfile.tsx",
+        "component_id": "comp_001",
+        "story_id": "story_001",
+        "file_type": "source",
+        "language": "typescript",
+        "content": "import React from 'react'; export const PlayerProfile = () => <div>Player Profile</div>;"
+      }
+    ],
+    "architecture": {
+      "project_id": "coach-connect-app",
+      "name": "Coach Connect App",
+      "tech_stack": "react_fullstack",
+      "components": [
+        {
+          "component_id": "comp_001",
+          "name": "PlayerProfile",
+          "type": "component",
+          "file_path": "src/components/PlayerProfile.tsx",
+          "dependencies": [],
+          "exports": ["PlayerProfile"],
+          "story_ids": ["story_001"]
+        }
+      ]
+    },
+    "pipeline_context": {
+      "execution_id": "story_exec_test_coach",
+      "project_id": "coach-connect-app",
+      "stage": "story_execution"
+    }
+  }
+}

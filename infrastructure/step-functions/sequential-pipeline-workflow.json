@@ -1,0 +1,343 @@
+{
+  "Comment": "Sequential AI Pipeline Orchestrator v2 - Process stories one at a time with validation",
+  "StartAt": "DocumentProcessor",
+  "States": {
+    "DocumentProcessor": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-document-processor-${ENVIRONMENT}",
+      "ResultPath": "$.documentProcessorResult",
+      "Next": "RequirementsSynthesizer",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    
+    "RequirementsSynthesizer": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-requirements-synthesizer-${ENVIRONMENT}",
+      "ResultPath": "$.requirementsSynthesizerResult",
+      "Next": "ArchitecturePlanner",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    
+    "ArchitecturePlanner": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-architecture-planner-${ENVIRONMENT}",
+      "ResultPath": "$.architecturePlannerResult",
+      "Next": "SetupGitHubInfrastructure",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    
+    "SetupGitHubInfrastructure": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-github-orchestrator-${ENVIRONMENT}",
+      "Parameters": {
+        "operation_mode": "setup_deployment",
+        "project_id.$": "$.architecturePlannerResult.Payload.data.architecture.project_id",
+        "tech_stack.$": "$.architecturePlannerResult.Payload.data.architecture.tech_stack",
+        "architecture.$": "$.architecturePlannerResult.Payload.data.architecture"
+      },
+      "ResultPath": "$.githubSetupResult",
+      "Next": "PrepareStoryLoop",
+      "Retry": [
+        {
+          "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException"],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "PipelineError",
+          "ResultPath": "$.error"
+        }
+      ]
+    },
+    
+    "PrepareStoryLoop": {
+      "Type": "Pass",
+      "Parameters": {
+        "stories.$": "$.architecturePlannerResult.Payload.data.user_stories",
+        "architecture.$": "$.architecturePlannerResult.Payload.data.architecture",
+        "pipeline_context.$": "$.architecturePlannerResult.Payload.data.pipeline_context",
+        "repository_info.$": "$.githubSetupResult.Payload.data.repository_info",
+        "deployment_info.$": "$.githubSetupResult.Payload.data.deployment_info",
+        "story_index": 0,
+        "generated_files": [],
+        "commit_history": [],
+        "completed_stories": [],
+        "failed_stories": []
+      },
+      "ResultPath": "$.loopState",
+      "Next": "ProcessStoriesSequentially"
+    },
+    
+    "ProcessStoriesSequentially": {
+      "Type": "Map",
+      "ItemsPath": "$.loopState.stories",
+      "MaxConcurrency": 1,
+      "Parameters": {
+        "story.$": "$$.Map.Item.Value",
+        "story_index.$": "$$.Map.Item.Index",
+        "architecture.$": "$.loopState.architecture",
+        "pipeline_context.$": "$.loopState.pipeline_context",
+        "repository_info.$": "$.loopState.repository_info",
+        "existing_files.$": "$.loopState.generated_files",
+        "commit_history.$": "$.loopState.commit_history"
+      },
+      "Iterator": {
+        "StartAt": "GenerateStoryCode",
+        "States": {
+          "GenerateStoryCode": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-story-executor-${ENVIRONMENT}",
+            "Parameters": {
+              "operation_mode": "single_story",
+              "story.$": "$.story",
+              "architecture.$": "$.architecture",
+              "pipeline_context.$": "$.pipeline_context",
+              "existing_files.$": "$.existing_files"
+            },
+            "ResultPath": "$.storyGenerationResult",
+            "Next": "ValidateStory",
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.ServiceException"],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 2,
+                "BackoffRate": 2
+              }
+            ]
+          },
+          
+          "ValidateStory": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-story-validator-${ENVIRONMENT}",
+            "Parameters": {
+              "story_files.$": "$.storyGenerationResult.Payload.data.generated_files",
+              "existing_files.$": "$.existing_files",
+              "story_metadata": {
+                "story_id.$": "$.story.story_id",
+                "title.$": "$.story.title",
+                "index.$": "$.story_index",
+                "is_first_story.$": "States.MathEquals($.story_index, 0)",
+                "is_last_story.$": "States.MathEquals($.story_index, States.ArrayLength($.existing_files))",
+                "acceptance_criteria.$": "$.story.acceptance_criteria"
+              },
+              "architecture.$": "$.architecture",
+              "project_context.$": "$.pipeline_context"
+            },
+            "ResultPath": "$.validationResult",
+            "Next": "CheckValidationResult",
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.ServiceException"],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 2,
+                "BackoffRate": 2
+              }
+            ]
+          },
+          
+          "CheckValidationResult": {
+            "Type": "Choice",
+            "Choices": [
+              {
+                "Variable": "$.validationResult.Payload.data.validation_passed",
+                "BooleanEquals": true,
+                "Next": "BuildValidation"
+              },
+              {
+                "Variable": "$.validationResult.Payload.data.auto_fix_applied",
+                "BooleanEquals": true,
+                "Next": "BuildValidation"
+              }
+            ],
+            "Default": "RetryStoryGeneration"
+          },
+          
+          "RetryStoryGeneration": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-story-executor-${ENVIRONMENT}",
+            "Parameters": {
+              "operation_mode": "single_story_with_feedback",
+              "story.$": "$.story",
+              "architecture.$": "$.architecture",
+              "pipeline_context.$": "$.pipeline_context",
+              "existing_files.$": "$.existing_files",
+              "validation_feedback.$": "$.validationResult.Payload.data.issues"
+            },
+            "ResultPath": "$.storyGenerationResult",
+            "Next": "ValidateStoryRetry",
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.ServiceException"],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 1,
+                "BackoffRate": 2
+              }
+            ]
+          },
+          
+          "ValidateStoryRetry": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-story-validator-${ENVIRONMENT}",
+            "Parameters": {
+              "story_files.$": "$.storyGenerationResult.Payload.data.generated_files",
+              "existing_files.$": "$.existing_files",
+              "story_metadata": {
+                "story_id.$": "$.story.story_id",
+                "title.$": "$.story.title",
+                "index.$": "$.story_index",
+                "retry_attempt": 1
+              },
+              "architecture.$": "$.architecture",
+              "project_context.$": "$.pipeline_context"
+            },
+            "ResultPath": "$.validationResult",
+            "Next": "BuildValidation"
+          },
+          
+          "BuildValidation": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-build-orchestrator-${ENVIRONMENT}",
+            "Parameters": {
+              "story_files.$": "$.validationResult.Payload.data.story_files",
+              "existing_files.$": "$.existing_files",
+              "tech_stack.$": "$.architecture.tech_stack",
+              "story_metadata": {
+                "story_id.$": "$.story.story_id",
+                "title.$": "$.story.title"
+              }
+            },
+            "ResultPath": "$.buildResult",
+            "Next": "CommitStory",
+            "Retry": [
+              {
+                "ErrorEquals": ["Lambda.ServiceException"],
+                "IntervalSeconds": 2,
+                "MaxAttempts": 2,
+                "BackoffRate": 2
+              }
+            ]
+          },
+          
+          "CommitStory": {
+            "Type": "Task",
+            "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-github-orchestrator-${ENVIRONMENT}",
+            "Parameters": {
+              "operation_mode": "incremental_commit",
+              "story_files.$": "$.buildResult.Payload.data.story_files",
+              "story_metadata": {
+                "story_id.$": "$.story.story_id",
+                "title.$": "$.story.title",
+                "index.$": "$.story_index",
+                "is_last_story.$": "States.MathEquals($.story_index, States.ArrayLength($.existing_files))"
+              },
+              "project_context.$": "$.pipeline_context",
+              "architecture.$": "$.architecture",
+              "repository_info.$": "$.repository_info",
+              "commit_history.$": "$.commit_history"
+            },
+            "ResultPath": "$.commitResult",
+            "Next": "UpdateLoopState"
+          },
+          
+          "UpdateLoopState": {
+            "Type": "Pass",
+            "Parameters": {
+              "story_completed": true,
+              "story_id.$": "$.story.story_id",
+              "files_generated.$": "$.buildResult.Payload.data.story_files",
+              "commit_id.$": "$.commitResult.Payload.data.commit_info.sha",
+              "commit_history.$": "$.commitResult.Payload.data.commit_history",
+              "pr_info.$": "$.commitResult.Payload.data.pr_info"
+            },
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.storyResults",
+      "Next": "CheckPipelineCompletion"
+    },
+    
+    "CheckPipelineCompletion": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.storyResults[0].pr_info",
+          "IsPresent": true,
+          "Next": "PipelineSuccess"
+        }
+      ],
+      "Default": "CreateFinalPullRequest"
+    },
+    
+    "CreateFinalPullRequest": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:${AWS_REGION}:${AWS_ACCOUNT_ID}:function:ai-pipeline-v2-github-orchestrator-${ENVIRONMENT}",
+      "Parameters": {
+        "operation_mode": "create_pr",
+        "project_context.$": "$.loopState.pipeline_context",
+        "repository_info.$": "$.loopState.repository_info",
+        "commit_history.$": "$.storyResults[-1].commit_history",
+        "architecture.$": "$.loopState.architecture"
+      },
+      "ResultPath": "$.finalPRResult",
+      "Next": "PipelineSuccess"
+    },
+    
+    "PipelineSuccess": {
+      "Type": "Succeed",
+      "OutputPath": "$"
+    },
+    
+    "PipelineError": {
+      "Type": "Fail",
+      "Error": "PipelineExecutionError",
+      "Cause": "The pipeline encountered an error during execution"
+    }
+  }
+}

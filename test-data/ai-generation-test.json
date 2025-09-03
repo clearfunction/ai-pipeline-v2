@@ -1,0 +1,51 @@
+{
+  "architecturePlannerResult": {
+    "Payload": {
+      "data": {
+        "architecture": {
+          "project_id": "ai-test-20250828",
+          "name": "ai-test-20250828",
+          "tech_stack": "react_spa",
+          "components": [
+            {
+              "component_id": "comp_001",
+              "name": "TodoList",
+              "type": "component",
+              "file_path": "src/components/TodoList.tsx",
+              "dependencies": ["TodoService"],
+              "exports": ["TodoList"],
+              "story_ids": ["story_001"]
+            }
+          ],
+          "dependencies": {
+            "react": "^18.2.0",
+            "react-dom": "^18.2.0"
+          },
+          "build_config": {
+            "package_manager": "npm",
+            "bundler": "vite"
+          },
+          "user_stories": [
+            {
+              "story_id": "story_001",
+              "title": "Todo Management",
+              "description": "As a user, I want to manage my todos with add, delete, and complete functionality",
+              "acceptance_criteria": [
+                "User can add new todos",
+                "User can mark todos as complete",
+                "User can delete todos",
+                "Todos persist in local storage"
+              ],
+              "priority": 1,
+              "assigned_components": ["comp_001"]
+            }
+          ]
+        },
+        "pipeline_context": {
+          "project_id": "ai-test-20250828",
+          "execution_id": "test_20250828_1919"
+        }
+      }
+    }
+  }
+}

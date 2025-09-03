@@ -98,8 +98,8 @@ class ClaudeCodeService:
         # Configure Claude Code options
         options = ClaudeCodeOptions(
             system_prompt=self._get_system_prompt(tech_stack),
-            max_turns=1,  # Single response for efficiency
-            temperature=0.2  # Low temperature for consistent code
+            max_turns=1  # Single response for efficiency
+            # Note: temperature parameter removed - not supported by ClaudeCodeOptions
         )
         
         logger.info(f"Generating code for story: {story.get('title', 'Unknown')}")

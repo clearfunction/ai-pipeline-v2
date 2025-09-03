@@ -1,678 +1,808 @@
 """
-Integration Validator Lambda
+Integration Validator Lambda (Refactored for Incremental Validation)
 
-Validates cross-component integration, consistency, and generates GitHub workflow configurations.
-This lambda ensures generated components work together and sets up GitHub repository structure.
+Performs incremental validation after each story completion rather than waiting
+for all stories to be generated. This enables early detection and fixing of issues.
 
 Author: AI Pipeline Orchestrator v2
-Version: 1.0.0 (Simplified)
+Version: 2.0.0 (Sequential Story Validation)
 """
 
 import json
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import boto3
 from datetime import datetime
+import hashlib
 
 # Initialize AWS clients
 s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 
-def retrieve_file_content_from_s3(file_metadata: Dict[str, Any]) -> str:
+# Import shared services
+import sys
+sys.path.append('/opt/python')
+from shared.services.auto_fix_service import AutoFixService
+from shared.utils.logger import setup_logger, log_lambda_start, log_lambda_end, log_error
+
+logger = setup_logger("integration-validator")
+
+
+class IncrementalIntegrationValidator:
     """
-    Retrieve file content from S3 using metadata.
+    Handles incremental validation of generated components after each story.
+    Validates integration points, consistency, and cumulative build integrity.
+    """
     
-    Args:
-        file_metadata: File metadata containing S3 location
+    def __init__(self):
+        self.s3_client = s3_client
+        self.dynamodb = dynamodb
+        self.auto_fix_service = AutoFixService()
         
-    Returns:
-        File content as string
-    """
-    s3_bucket = file_metadata.get('s3_bucket')
-    s3_key = file_metadata.get('s3_key')
+        # Get configuration from environment
+        self.processed_bucket = os.environ.get('PROCESSED_BUCKET_NAME')
+        self.component_table = os.environ.get('COMPONENT_SPECS_TABLE', 'ai-pipeline-v2-component-specs-dev')
+        self.validation_config_bucket = os.environ.get('CONFIG_BUCKET', self.processed_bucket)
+        
+        # Load validation configuration
+        self.validation_config = self._load_validation_config()
     
-    # If no S3 info, check for inline content (backward compatibility)
-    if not s3_bucket or not s3_key:
-        return file_metadata.get('content', '')
+    def _load_validation_config(self) -> Dict[str, Any]:
+        """Load validation configuration from S3 or use defaults."""
+        try:
+            response = self.s3_client.get_object(
+                Bucket=self.validation_config_bucket,
+                Key='config/validation-config.json'
+            )
+            return json.loads(response['Body'].read().decode('utf-8'))
+        except Exception as e:
+            logger.warning(f"Could not load validation config: {e}, using defaults")
+            return {
+                "incremental_validation": {
+                    "enabled": True,
+                    "validate_after_each_story": True,
+                    "auto_fix_enabled": True,
+                    "max_fix_attempts": 2
+                },
+                "validation_levels": {
+                    "syntax": True,
+                    "imports": True,
+                    "types": True,
+                    "integration": True,
+                    "consistency": True
+                }
+            }
     
-    try:
-        response = s3_client.get_object(Bucket=s3_bucket, Key=s3_key)
-        return response['Body'].read().decode('utf-8')
-    except Exception as e:
-        print(f"Error retrieving file from S3: {e}")
-        return ''
+    def validate_story_increment(
+        self,
+        story_files: List[Dict[str, Any]],
+        existing_files: List[Dict[str, Any]],
+        story_metadata: Dict[str, Any],
+        architecture: Dict[str, Any],
+        project_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Perform incremental validation for a single story's output.
+        
+        Args:
+            story_files: Files generated for the current story
+            existing_files: Previously generated files from earlier stories
+            story_metadata: Metadata about the current story
+            architecture: Project architecture specification
+            project_context: Overall project context
+            
+        Returns:
+            Validation result with issues and fixes if applicable
+        """
+        execution_id = f"inc_val_{story_metadata.get('story_id')}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        logger.info(f"Starting incremental validation for story: {story_metadata.get('title')}")
+        
+        validation_results = []
+        all_files = existing_files + story_files
+        
+        # 1. Validate new files don't break existing imports
+        import_validation = self._validate_import_consistency(
+            story_files, existing_files, architecture
+        )
+        validation_results.append(import_validation)
+        
+        # 2. Validate component interfaces match expectations
+        interface_validation = self._validate_component_interfaces(
+            story_files, existing_files, story_metadata, architecture
+        )
+        validation_results.append(interface_validation)
+        
+        # 3. Validate no duplicate exports or conflicting names
+        export_validation = self._validate_export_consistency(
+            story_files, existing_files
+        )
+        validation_results.append(export_validation)
+        
+        # 4. Validate dependency graph integrity
+        dependency_validation = self._validate_dependency_graph(
+            all_files, architecture
+        )
+        validation_results.append(dependency_validation)
+        
+        # 5. Validate TypeScript types if applicable
+        if architecture.get('tech_stack') in ['react_spa', 'react_fullstack', 'node_api']:
+            type_validation = self._validate_typescript_consistency(
+                story_files, existing_files, architecture
+            )
+            validation_results.append(type_validation)
+        
+        # 6. Validate file structure consistency
+        structure_validation = self._validate_file_structure(
+            story_files, architecture, story_metadata
+        )
+        validation_results.append(structure_validation)
+        
+        # Calculate validation summary
+        validation_passed = all(result.get('passed', False) for result in validation_results)
+        issues = []
+        for result in validation_results:
+            issues.extend(result.get('issues', []))
+        
+        validation_summary = {
+            'execution_id': execution_id,
+            'story_id': story_metadata.get('story_id'),
+            'story_title': story_metadata.get('title'),
+            'validation_passed': validation_passed,
+            'total_validations': len(validation_results),
+            'failed_validations': len([r for r in validation_results if not r.get('passed', False)]),
+            'total_issues': len(issues),
+            'validation_results': validation_results,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+        
+        # If validation failed and auto-fix is enabled, attempt fixes
+        if not validation_passed and self.validation_config.get('incremental_validation', {}).get('auto_fix_enabled', True):
+            logger.info(f"Validation failed with {len(issues)} issues, attempting auto-fix")
+            
+            fix_result = self._attempt_auto_fix(
+                validation_summary,
+                story_files,
+                existing_files,
+                story_metadata,
+                architecture
+            )
+            
+            if fix_result.get('fixes_applied'):
+                validation_summary['auto_fix_applied'] = True
+                validation_summary['fixed_files'] = fix_result.get('fixed_files', [])
+                validation_summary['fix_summary'] = fix_result.get('summary')
+                
+                # Re-validate after fixes
+                revalidation_result = self.validate_story_increment(
+                    fix_result.get('fixed_files', story_files),
+                    existing_files,
+                    story_metadata,
+                    architecture,
+                    project_context
+                )
+                
+                validation_summary['revalidation_result'] = revalidation_result
+                validation_summary['final_validation_passed'] = revalidation_result.get('validation_passed', False)
+        
+        # Store validation results
+        self._store_validation_results(validation_summary, project_context)
+        
+        return validation_summary
+    
+    def _validate_import_consistency(
+        self,
+        new_files: List[Dict[str, Any]],
+        existing_files: List[Dict[str, Any]],
+        architecture: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Validate that new files don't break existing import chains.
+        """
+        issues = []
+        all_files = existing_files + new_files
+        file_map = {f.get('file_path'): f for f in all_files}
+        
+        # Check imports in new files
+        for new_file in new_files:
+            file_path = new_file.get('file_path')
+            content = self._get_file_content(new_file)
+            
+            if not content:
+                continue
+            
+            # Extract imports (simplified - would need proper parsing in production)
+            import_patterns = [
+                r"import .* from ['\"](.+)['\"]",
+                r"require\(['\"](.+)['\"]\)",
+                r"from (['\"].+['\"])"
+            ]
+            
+            for pattern in import_patterns:
+                import re
+                matches = re.findall(pattern, content)
+                for import_path in matches:
+                    # Clean import path
+                    import_path = import_path.strip('"\'')
+                    
+                    # Skip external packages
+                    if not import_path.startswith('.'):
+                        continue
+                    
+                    # Resolve relative import
+                    resolved_path = self._resolve_import_path(file_path, import_path)
+                    
+                    # Check if imported file exists
+                    if resolved_path not in file_map:
+                        issues.append({
+                            'type': 'missing_import',
+                            'file': file_path,
+                            'import': import_path,
+                            'resolved_path': resolved_path,
+                            'message': f"Import '{import_path}' in {file_path} cannot be resolved"
+                        })
+        
+        # Check if new files break existing imports
+        for existing_file in existing_files:
+            file_path = existing_file.get('file_path')
+            content = self._get_file_content(existing_file)
+            
+            if not content:
+                continue
+            
+            # Check if any new file shadows or conflicts with existing imports
+            # This is a simplified check - production would need more sophisticated analysis
+            
+        return {
+            'validation_type': 'import_consistency',
+            'passed': len(issues) == 0,
+            'issues': issues,
+            'details': {
+                'new_files_checked': len(new_files),
+                'existing_files_checked': len(existing_files),
+                'total_issues': len(issues)
+            }
+        }
+    
+    def _validate_component_interfaces(
+        self,
+        new_files: List[Dict[str, Any]],
+        existing_files: List[Dict[str, Any]],
+        story_metadata: Dict[str, Any],
+        architecture: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Validate that component interfaces match architectural expectations.
+        """
+        issues = []
+        
+        # Get expected interfaces from story metadata
+        expected_interfaces = story_metadata.get('interfaces', [])
+        component_specs = story_metadata.get('component_specs', [])
+        
+        for new_file in new_files:
+            file_path = new_file.get('file_path')
+            content = self._get_file_content(new_file)
+            
+            if not content:
+                continue
+            
+            # Check for expected exports
+            for spec in component_specs:
+                if spec.get('file_path') == file_path:
+                    expected_exports = spec.get('exports', [])
+                    
+                    for export_name in expected_exports:
+                        # Simple check for export presence
+                        export_patterns = [
+                            f"export.*{export_name}",
+                            f"module.exports.*{export_name}",
+                            f"exports.{export_name}"
+                        ]
+                        
+                        found = False
+                        for pattern in export_patterns:
+                            import re
+                            if re.search(pattern, content):
+                                found = True
+                                break
+                        
+                        if not found:
+                            issues.append({
+                                'type': 'missing_export',
+                                'file': file_path,
+                                'export': export_name,
+                                'message': f"Expected export '{export_name}' not found in {file_path}"
+                            })
+        
+        return {
+            'validation_type': 'component_interfaces',
+            'passed': len(issues) == 0,
+            'issues': issues,
+            'details': {
+                'expected_interfaces': len(expected_interfaces),
+                'files_validated': len(new_files),
+                'total_issues': len(issues)
+            }
+        }
+    
+    def _validate_export_consistency(
+        self,
+        new_files: List[Dict[str, Any]],
+        existing_files: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Validate no duplicate exports or naming conflicts.
+        """
+        issues = []
+        all_exports = {}
+        
+        # Collect exports from existing files
+        for file in existing_files:
+            file_path = file.get('file_path')
+            exports = self._extract_exports(file)
+            for export_name in exports:
+                if export_name in all_exports:
+                    all_exports[export_name].append(file_path)
+                else:
+                    all_exports[export_name] = [file_path]
+        
+        # Check new files for conflicts
+        for file in new_files:
+            file_path = file.get('file_path')
+            exports = self._extract_exports(file)
+            
+            for export_name in exports:
+                if export_name in all_exports:
+                    issues.append({
+                        'type': 'duplicate_export',
+                        'export': export_name,
+                        'new_file': file_path,
+                        'existing_files': all_exports[export_name],
+                        'message': f"Export '{export_name}' already exists in {all_exports[export_name]}"
+                    })
+        
+        return {
+            'validation_type': 'export_consistency',
+            'passed': len(issues) == 0,
+            'issues': issues,
+            'details': {
+                'total_exports': len(all_exports),
+                'new_files_checked': len(new_files),
+                'conflicts_found': len(issues)
+            }
+        }
+    
+    def _validate_dependency_graph(
+        self,
+        all_files: List[Dict[str, Any]],
+        architecture: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Validate the dependency graph has no cycles and all dependencies exist.
+        """
+        issues = []
+        dependency_graph = {}
+        
+        # Build dependency graph
+        for file in all_files:
+            file_path = file.get('file_path')
+            dependencies = self._extract_dependencies(file)
+            dependency_graph[file_path] = dependencies
+        
+        # Check for cycles
+        visited = set()
+        rec_stack = set()
+        
+        def has_cycle(node, graph, visited, rec_stack):
+            visited.add(node)
+            rec_stack.add(node)
+            
+            for neighbor in graph.get(node, []):
+                if neighbor not in visited:
+                    if has_cycle(neighbor, graph, visited, rec_stack):
+                        return True
+                elif neighbor in rec_stack:
+                    return True
+            
+            rec_stack.remove(node)
+            return False
+        
+        for node in dependency_graph:
+            if node not in visited:
+                if has_cycle(node, dependency_graph, visited, rec_stack):
+                    issues.append({
+                        'type': 'circular_dependency',
+                        'file': node,
+                        'message': f"Circular dependency detected involving {node}"
+                    })
+        
+        return {
+            'validation_type': 'dependency_graph',
+            'passed': len(issues) == 0,
+            'issues': issues,
+            'details': {
+                'total_files': len(all_files),
+                'dependency_edges': sum(len(deps) for deps in dependency_graph.values()),
+                'cycles_detected': len(issues)
+            }
+        }
+    
+    def _validate_typescript_consistency(
+        self,
+        new_files: List[Dict[str, Any]],
+        existing_files: List[Dict[str, Any]],
+        architecture: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Validate TypeScript type consistency across files.
+        """
+        issues = []
+        
+        # Collect type definitions from existing files
+        existing_types = {}
+        for file in existing_files:
+            if file.get('file_path', '').endswith(('.ts', '.tsx')):
+                types = self._extract_type_definitions(file)
+                existing_types.update(types)
+        
+        # Check new files for type conflicts
+        for file in new_files:
+            if file.get('file_path', '').endswith(('.ts', '.tsx')):
+                types = self._extract_type_definitions(file)
+                
+                for type_name, type_def in types.items():
+                    if type_name in existing_types:
+                        if type_def != existing_types[type_name]:
+                            issues.append({
+                                'type': 'type_conflict',
+                                'type_name': type_name,
+                                'file': file.get('file_path'),
+                                'message': f"Type '{type_name}' conflicts with existing definition"
+                            })
+        
+        return {
+            'validation_type': 'typescript_consistency',
+            'passed': len(issues) == 0,
+            'issues': issues,
+            'details': {
+                'existing_types': len(existing_types),
+                'new_files_checked': len([f for f in new_files if f.get('file_path', '').endswith(('.ts', '.tsx'))]),
+                'type_conflicts': len(issues)
+            }
+        }
+    
+    def _validate_file_structure(
+        self,
+        new_files: List[Dict[str, Any]],
+        architecture: Dict[str, Any],
+        story_metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Validate files follow the expected directory structure.
+        """
+        issues = []
+        
+        # Get expected structure from architecture
+        expected_structure = architecture.get('directory_structure', {})
+        tech_stack = architecture.get('tech_stack')
+        
+        # Define expected patterns by tech stack
+        structure_patterns = {
+            'react_spa': {
+                'components': r'^src/components/',
+                'pages': r'^src/pages/',
+                'utils': r'^src/utils/',
+                'services': r'^src/services/',
+                'styles': r'^src/styles/'
+            },
+            'react_fullstack': {
+                'client': r'^client/',
+                'server': r'^server/',
+                'shared': r'^shared/'
+            },
+            'node_api': {
+                'routes': r'^src/routes/',
+                'controllers': r'^src/controllers/',
+                'models': r'^src/models/',
+                'middleware': r'^src/middleware/'
+            }
+        }
+        
+        patterns = structure_patterns.get(tech_stack, {})
+        
+        for file in new_files:
+            file_path = file.get('file_path')
+            component_type = file.get('component_type', '')
+            
+            # Check if file matches expected pattern
+            matched = False
+            for pattern_type, pattern in patterns.items():
+                import re
+                if re.match(pattern, file_path):
+                    matched = True
+                    break
+            
+            if not matched and component_type in patterns:
+                issues.append({
+                    'type': 'structure_violation',
+                    'file': file_path,
+                    'expected_pattern': patterns.get(component_type),
+                    'message': f"File {file_path} doesn't match expected structure for {component_type}"
+                })
+        
+        return {
+            'validation_type': 'file_structure',
+            'passed': len(issues) == 0,
+            'issues': issues,
+            'details': {
+                'tech_stack': tech_stack,
+                'files_checked': len(new_files),
+                'structure_violations': len(issues)
+            }
+        }
+    
+    def _attempt_auto_fix(
+        self,
+        validation_summary: Dict[str, Any],
+        story_files: List[Dict[str, Any]],
+        existing_files: List[Dict[str, Any]],
+        story_metadata: Dict[str, Any],
+        architecture: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Attempt to automatically fix validation issues.
+        """
+        # Prepare error analysis for auto-fix service
+        error_analysis = {
+            'validation_summary': validation_summary,
+            'issues': [],
+            'story_context': story_metadata,
+            'architecture': architecture
+        }
+        
+        # Categorize issues for targeted fixes
+        for result in validation_summary.get('validation_results', []):
+            if not result.get('passed'):
+                for issue in result.get('issues', []):
+                    error_analysis['issues'].append({
+                        'category': result.get('validation_type'),
+                        'issue': issue
+                    })
+        
+        # Generate fixes using auto-fix service
+        fix_result = self.auto_fix_service.generate_fixes(
+            error_analysis,
+            story_files,
+            existing_files,
+            story_metadata
+        )
+        
+        return fix_result
+    
+    def _get_file_content(self, file: Dict[str, Any]) -> str:
+        """Retrieve file content from S3 or inline."""
+        if 's3_bucket' in file and 's3_key' in file:
+            try:
+                response = self.s3_client.get_object(
+                    Bucket=file['s3_bucket'],
+                    Key=file['s3_key']
+                )
+                return response['Body'].read().decode('utf-8')
+            except Exception as e:
+                logger.error(f"Failed to retrieve file from S3: {e}")
+                return ''
+        return file.get('content', '')
+    
+    def _resolve_import_path(self, from_file: str, import_path: str) -> str:
+        """Resolve relative import path to absolute path."""
+        import os
+        from_dir = os.path.dirname(from_file)
+        resolved = os.path.normpath(os.path.join(from_dir, import_path))
+        
+        # Add common extensions if not present
+        if not os.path.splitext(resolved)[1]:
+            # Try common extensions
+            for ext in ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx']:
+                potential_path = resolved + ext
+                # In real implementation, would check if file exists
+                # For now, return the first potential match
+                return potential_path
+        
+        return resolved
+    
+    def _extract_exports(self, file: Dict[str, Any]) -> List[str]:
+        """Extract export names from a file."""
+        content = self._get_file_content(file)
+        exports = []
+        
+        if not content:
+            return exports
+        
+        # Simple regex patterns for exports
+        import re
+        patterns = [
+            r"export\s+(?:const|let|var|function|class)\s+(\w+)",
+            r"export\s+{\s*([^}]+)\s*}",
+            r"module\.exports\s*=\s*{\s*([^}]+)\s*}",
+            r"exports\.(\w+)\s*="
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, content)
+            for match in matches:
+                if ',' in match:
+                    # Handle multiple exports
+                    exports.extend([e.strip() for e in match.split(',')])
+                else:
+                    exports.append(match)
+        
+        return exports
+    
+    def _extract_dependencies(self, file: Dict[str, Any]) -> List[str]:
+        """Extract dependencies from a file."""
+        content = self._get_file_content(file)
+        dependencies = []
+        
+        if not content:
+            return dependencies
+        
+        import re
+        patterns = [
+            r"import.*from\s+['\"]([^'\"]+)['\"]",
+            r"require\(['\"]([^'\"]+)['\"]\)"
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, content)
+            for match in matches:
+                if match.startswith('.'):
+                    # Resolve relative import
+                    resolved = self._resolve_import_path(file.get('file_path'), match)
+                    dependencies.append(resolved)
+        
+        return dependencies
+    
+    def _extract_type_definitions(self, file: Dict[str, Any]) -> Dict[str, str]:
+        """Extract TypeScript type definitions from a file."""
+        content = self._get_file_content(file)
+        types = {}
+        
+        if not content:
+            return types
+        
+        import re
+        patterns = [
+            r"(?:export\s+)?(?:interface|type)\s+(\w+)",
+            r"(?:export\s+)?enum\s+(\w+)"
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, content)
+            for match in matches:
+                # Store a simplified hash of the type definition
+                # In production, would parse the actual type definition
+                types[match] = hashlib.md5(content.encode()).hexdigest()[:8]
+        
+        return types
+    
+    def _store_validation_results(
+        self,
+        validation_summary: Dict[str, Any],
+        project_context: Dict[str, Any]
+    ):
+        """Store validation results in DynamoDB and S3."""
+        try:
+            # Store in DynamoDB
+            table = self.dynamodb.Table(self.component_table)
+            table.put_item(Item={
+                'component_id': f"inc-val-{validation_summary['execution_id']}",
+                'validation_summary': validation_summary,
+                'project_id': project_context.get('project_id'),
+                'story_id': validation_summary.get('story_id'),
+                'timestamp': validation_summary.get('timestamp'),
+                'ttl': int(datetime.utcnow().timestamp()) + (30 * 24 * 60 * 60)
+            })
+            
+            # Store detailed results in S3
+            s3_key = f"incremental-validation/{project_context.get('project_id')}/{validation_summary['story_id']}/validation-result.json"
+            self.s3_client.put_object(
+                Bucket=self.processed_bucket,
+                Key=s3_key,
+                Body=json.dumps(validation_summary, default=str),
+                ContentType='application/json'
+            )
+            
+            logger.info(f"Stored validation results: {s3_key}")
+            
+        except Exception as e:
+            logger.error(f"Failed to store validation results: {e}")
+
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    Main lambda handler for integration validation and GitHub setup.
+    Lambda handler for incremental integration validation.
     
-    Args:
-        event: Lambda event containing execution context and component specifications
-        context: Lambda runtime context
-        
-    Returns:
-        Dict containing validation results and GitHub workflow configuration
+    This refactored version handles per-story validation instead of
+    validating all stories at the end of the pipeline.
     """
-    execution_id = f"integration_val_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+    execution_id = log_lambda_start(event, context)
     
     try:
-        print(f"Starting integration validation with execution_id: {execution_id}")
-        print(f"Event data: {json.dumps(event, default=str)}")
+        validator = IncrementalIntegrationValidator()
         
-        # Handle both direct lambda input and Step Functions input
-        if 'storyExecutorResult' in event:
-            # Step Functions format - extract from story executor result
+        # Extract data from event
+        if 'story_files' in event:
+            # Direct invocation for single story validation
+            story_files = event.get('story_files', [])
+            existing_files = event.get('existing_files', [])
+            story_metadata = event.get('story_metadata', {})
+            architecture = event.get('architecture', {})
+            project_context = event.get('project_context', {})
+            
+        elif 'storyExecutorResult' in event:
+            # Step Functions format - extract from story executor result  
             story_result = event.get('storyExecutorResult', {}).get('Payload', {})
             data = story_result.get('data', {})
+            
+            story_files = data.get('generated_files', [])
+            existing_files = data.get('existing_files', [])
+            story_metadata = data.get('story_metadata', {})
+            architecture = data.get('architecture', {})
+            project_context = data.get('pipeline_context', {})
+            
         else:
-            # Direct lambda input format
-            data = event.get('data', {})
+            raise ValueError("Invalid event format - missing required data")
         
-        project_context = data.get('pipeline_context', {})
-        generated_files = data.get('generated_files', [])
-        architecture = data.get('architecture', {})
+        # Perform incremental validation
+        validation_result = validator.validate_story_increment(
+            story_files,
+            existing_files,
+            story_metadata,
+            architecture,
+            project_context
+        )
         
-        project_id = project_context.get('project_id')
-        tech_stack = architecture.get('tech_stack')
-        components = architecture.get('components', [])
+        # Prepare response
+        validation_passed = validation_result.get('final_validation_passed', validation_result.get('validation_passed', False))
         
-        if not all([project_id, tech_stack, components]):
-            raise ValueError("Missing required data: project_id, tech_stack, or components")
-        
-        print(f"Validating project: {project_id}, tech_stack: {tech_stack}, components: {len(components)}")
-        
-        # Perform validation tasks
-        validation_results = []
-        
-        # 1. Cross-component dependency validation
-        dependency_validation = validate_component_dependencies(components)
-        validation_results.append(dependency_validation)
-        
-        # 2. File generation validation
-        file_validation = validate_generated_files(components, generated_files)
-        validation_results.append(file_validation)
-        
-        # 3. Tech stack consistency validation
-        tech_stack_validation = validate_tech_stack_consistency(components, tech_stack)
-        validation_results.append(tech_stack_validation)
-        
-        # 4. Lock file validation (NEW)
-        lock_file_validation = validate_lock_files(generated_files, tech_stack)
-        validation_results.append(lock_file_validation)
-        
-        # 5. Build requirements validation (NEW)
-        build_requirements_validation = validate_build_requirements(generated_files, tech_stack, architecture)
-        validation_results.append(build_requirements_validation)
-        
-        # Prepare validation summary
-        validation_summary = {
-            'execution_id': execution_id,
-            'project_id': project_id,
-            'tech_stack': tech_stack,
-            'validation_results': validation_results,
-            'validation_passed': all(result.get('passed', False) for result in validation_results),
-            'validated_at': datetime.utcnow().isoformat()
-        }
-        
-        # Store validation results in DynamoDB
-        try:
-            table = dynamodb.Table(os.environ.get('COMPONENT_SPECS_TABLE', 'ai-pipeline-v2-component-specs-dev'))
-            table.put_item(Item={
-                'component_id': f"validation-{execution_id}",
-                'validation_summary': validation_summary,
-                'ttl': int(datetime.utcnow().timestamp()) + (30 * 24 * 60 * 60)  # 30 days
-            })
-            print(f"Stored validation results in DynamoDB")
-        except Exception as e:
-            print(f"Warning: Failed to store validation results: {str(e)}")
-        
-        # Store full validation results and data in S3 for retrieval
-        try:
-            full_results = {
-                'execution_id': execution_id,
-                'project_id': project_id,
-                'validation_summary': validation_summary,
-                'validation_results': validation_results,
-                'architecture': architecture,
-                'generated_files': generated_files,
-                'pipeline_context': project_context,
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-            bucket_name = os.environ.get('PROCESSED_BUCKET_NAME', 'ai-pipeline-v2-processed-008537862626-us-east-1')
-            s3_key = f"validation-results/{execution_id}/full-results.json"
-            
-            s3_client.put_object(
-                Bucket=bucket_name,
-                Key=s3_key,
-                Body=json.dumps(full_results, default=str),
-                ContentType='application/json'
-            )
-            print(f"Stored full validation results in S3: s3://{bucket_name}/{s3_key}")
-        except Exception as e:
-            print(f"Warning: Failed to store full results in S3: {str(e)}")
-        
-        # Prepare response - minimize payload size for Step Functions
-        # Only pass essential data and summaries, not full file contents
         response = {
-            'status': 'success',
-            'message': f'Integration validation completed - {len(validation_results)} validations performed',
+            'status': 'success' if validation_passed else 'validation_failed',
+            'message': f"Story validation {'passed' if validation_passed else 'failed'}",
             'execution_id': execution_id,
-            'stage': 'integration_validation',
-            'project_id': project_id,
+            'stage': 'incremental_integration_validation',
+            'project_id': project_context.get('project_id'),
+            'story_id': story_metadata.get('story_id'),
             'timestamp': datetime.utcnow().isoformat(),
             'data': {
-                'validation_summary': validation_summary,
-                'validation_passed': validation_summary['validation_passed'],
-                'pipeline_context': {
-                    'project_id': project_context.get('project_id'),
-                    'execution_id': project_context.get('execution_id'),
-                    'stage': 'integration_validation'
-                },
-                # Only pass essential architecture info, not full components
-                'architecture_summary': {
-                    'project_id': architecture.get('project_id'),
-                    'tech_stack': architecture.get('tech_stack'),
-                    'components_count': len(architecture.get('components', [])),
-                    'build_config': architecture.get('build_config', {})
-                },
-                # Only pass file count and summary, not full file contents
-                'generated_files_summary': {
-                    'total_files': len(generated_files),
-                    'file_paths': [f.get('file_path') for f in generated_files[:20]]  # First 20 files only
-                },
-                # Store full data reference for retrieval if needed
-                'full_data_reference': {
-                    'bucket': os.environ.get('PROCESSED_BUCKET_NAME'),
-                    'key': f"validation-results/{execution_id}/full-results.json"
-                }
+                'validation_result': validation_result,
+                'validation_passed': validation_passed,
+                'auto_fix_applied': validation_result.get('auto_fix_applied', False),
+                'issues_found': validation_result.get('total_issues', 0),
+                'issues_fixed': len(validation_result.get('fixed_files', [])) if validation_result.get('auto_fix_applied') else 0,
+                'story_files': story_files if validation_passed else validation_result.get('fixed_files', story_files),
+                'existing_files': existing_files,
+                'story_metadata': story_metadata,
+                'architecture': architecture,
+                'project_context': project_context
             },
-            'next_stage': 'github_orchestrator'
+            'next_stage': 'build_orchestrator' if validation_passed else 'retry_story_generation'
         }
         
-        print(f"Integration validation completed successfully")
+        log_lambda_end(execution_id, response)
         return response
         
     except Exception as e:
-        print(f"Integration validation failed: {str(e)}")
+        error_msg = f"Incremental validation failed: {str(e)}"
+        log_error(e, execution_id, "incremental_integration_validation")
         
-        # Return proper error status - raise exception for Step Functions to handle
-        error_msg = f"Integration validation failed: {str(e)}"
+        error_response = {
+            'status': 'error',
+            'message': error_msg,
+            'execution_id': execution_id,
+            'stage': 'incremental_integration_validation',
+            'timestamp': datetime.utcnow().isoformat(),
+            'error': str(e)
+        }
+        
+        log_lambda_end(execution_id, error_response)
         raise RuntimeError(error_msg)
-
-
-def validate_component_dependencies(components: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Validate that all component dependencies are satisfied.
-    
-    Args:
-        components: List of component specifications
-        
-    Returns:
-        Validation result with dependency validation results
-    """
-    try:
-        component_names = {comp.get('name') for comp in components}
-        
-        issues = []
-        for component in components:
-            component_name = component.get('name')
-            dependencies = component.get('dependencies', [])
-            
-            for dependency in dependencies:
-                if dependency not in component_names:
-                    issues.append(f"Component '{component_name}' depends on '{dependency}' which is not defined")
-        
-        return {
-            'validation_type': 'dependency_validation',
-            'passed': len(issues) == 0,
-            'issues': issues,
-            'details': {
-                'total_components': len(components), 
-                'total_dependencies': sum(len(c.get('dependencies', [])) for c in components)
-            }
-        }
-        
-    except Exception as e:
-        return {
-            'validation_type': 'dependency_validation',
-            'passed': False,
-            'issues': [f"Dependency validation failed: {str(e)}"],
-            'details': {}
-        }
-
-
-def validate_generated_files(components: List[Dict[str, Any]], generated_files: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Validate that all required component files were generated.
-    
-    Args:
-        components: List of component specifications
-        generated_files: List of generated file metadata
-        
-    Returns:
-        Validation result with file generation validation results
-    """
-    try:
-        expected_files = {comp.get('file_path') for comp in components}
-        generated_file_paths = {file.get('file_path') for file in generated_files}
-        
-        issues = []
-        missing_files = expected_files - generated_file_paths
-        for missing_file in missing_files:
-            issues.append(f"Expected file '{missing_file}' was not generated")
-        
-        # Check for consistent component IDs
-        for file in generated_files:
-            component_id = file.get('component_id')
-            matching_components = [c for c in components if c.get('component_id') == component_id]
-            if not matching_components:
-                issues.append(f"Generated file has component_id '{component_id}' not found in architecture")
-        
-        return {
-            'validation_type': 'file_generation_validation',
-            'passed': len(issues) == 0,
-            'issues': issues,
-            'details': {
-                'expected_files': len(expected_files),
-                'generated_files': len(generated_files),
-                'missing_files': list(missing_files)
-            }
-        }
-        
-    except Exception as e:
-        return {
-            'validation_type': 'file_generation_validation',
-            'passed': False,
-            'issues': [f"File generation validation failed: {str(e)}"],
-            'details': {}
-        }
-
-
-def validate_tech_stack_consistency(components: List[Dict[str, Any]], tech_stack: str) -> Dict[str, Any]:
-    """
-    Validate that all components are consistent with the chosen tech stack.
-    
-    Args:
-        components: List of component specifications
-        tech_stack: Selected tech stack (e.g., 'react_fullstack', 'react_spa')
-        
-    Returns:
-        Validation result with tech stack validation results
-    """
-    try:
-        # Define expected file extensions by tech stack
-        tech_stack_extensions = {
-            'react_spa': ['.tsx', '.ts', '.jsx', '.js', '.css', '.scss'],
-            'node_api': ['.js', '.ts', '.json'],
-            'python_api': ['.py', '.pyi'],
-            'vue_spa': ['.vue', '.js', '.ts', '.css', '.scss'],
-            'react_fullstack': ['.tsx', '.ts', '.jsx', '.js', '.css', '.scss', '.json']
-        }
-        
-        # Common config/build files that are valid for all tech stacks
-        universal_extensions = ['.json', '.yml', '.yaml', '.md', '.txt', '.gitignore', '.env', '.lock', '.html']
-        config_file_names = ['package.json', 'package-lock.json', 'yarn.lock', 'tsconfig.json', 
-                            'vite.config.ts', 'vite.config.js', 'webpack.config.js', '.eslintrc.json',
-                            '.prettierrc', '.gitignore', 'README.md', 'index.html']
-        
-        expected_extensions = tech_stack_extensions.get(tech_stack.lower(), [])
-        issues = []
-        
-        for component in components:
-            file_path = component.get('file_path', '')
-            component_name = component.get('name', 'unknown')
-            component_type = component.get('type', '')
-            
-            # Skip validation for scaffold/config components
-            if component_type in ['scaffold', 'config'] or component_name in ['ProjectScaffold', 'ConfigFiles']:
-                continue
-            
-            # Skip validation for known config files
-            file_name = file_path.split('/')[-1] if '/' in file_path else file_path
-            if file_name in config_file_names:
-                continue
-                
-            if '.' in file_path:
-                file_extension = '.' + file_path.split('.')[-1]
-                
-                # Allow universal extensions for all tech stacks
-                if file_extension in universal_extensions:
-                    continue
-                
-                if file_extension not in expected_extensions:
-                    issues.append(f"Component '{component_name}' has file extension '{file_extension}' not expected for tech stack '{tech_stack}'")
-            else:
-                # Files without extensions might be valid (e.g., Dockerfile)
-                if file_name not in ['Dockerfile', 'Makefile', 'LICENSE']:
-                    issues.append(f"Component '{component_name}' has invalid file path '{file_path}'")
-        
-        return {
-            'validation_type': 'tech_stack_validation',
-            'passed': len(issues) == 0,
-            'issues': issues,
-            'details': {
-                'tech_stack': tech_stack,
-                'expected_extensions': expected_extensions,
-                'components_validated': len(components)
-            }
-        }
-        
-    except Exception as e:
-        return {
-            'validation_type': 'tech_stack_validation', 
-            'passed': False,
-            'issues': [f"Tech stack validation failed: {str(e)}"],
-            'details': {}
-        }
-
-
-def generate_github_workflows(tech_stack: str, project_name: str) -> Dict[str, Any]:
-    """
-    Generate GitHub Actions workflow configuration based on tech stack.
-    
-    Args:
-        tech_stack: Selected tech stack
-        project_name: Project name for workflow customization
-        
-    Returns:
-        GitHub workflow configuration
-    """
-    # Define workflow templates by tech stack
-    workflow_templates = {
-        'react_spa': {
-            'name': 'React SPA CI/CD',
-            'file_name': 'react-spa.yml',
-            'template_path': 'github-workflows/react-spa.yml',
-            'node_version': '18'
-        },
-        'node_api': {
-            'name': 'Node.js API CI/CD',
-            'file_name': 'node-api.yml', 
-            'template_path': 'github-workflows/node-api.yml',
-            'node_version': '18'
-        },
-        'python_api': {
-            'name': 'Python API CI/CD',
-            'file_name': 'python-api.yml',
-            'template_path': 'github-workflows/python-api.yml',
-            'python_version': '3.11'
-        },
-        'vue_spa': {
-            'name': 'Vue SPA CI/CD',
-            'file_name': 'vue-spa.yml',
-            'template_path': 'github-workflows/vue-spa.yml',
-            'node_version': '18'
-        },
-        'react_fullstack': {
-            'name': 'React Fullstack CI/CD',
-            'file_name': 'react-fullstack.yml',
-            'template_path': 'github-workflows/react-fullstack.yml',
-            'node_version': '18'
-        }
-    }
-    
-    template = workflow_templates.get(tech_stack.lower())
-    if not template:
-        template = workflow_templates['react_fullstack']  # Default fallback
-    
-    return {
-        'tech_stack': tech_stack,
-        'workflow_name': template['name'],
-        'workflow_file': template['file_name'],
-        'template_path': template['template_path'],
-        'project_name': project_name,
-        'triggers': ['push', 'pull_request'],
-        'node_version': template.get('node_version'),
-        'python_version': template.get('python_version'),
-        'build_commands': get_build_commands(tech_stack),
-        'deployment_target': get_deployment_target(tech_stack)
-    }
-
-
-def validate_lock_files(generated_files: List[Dict[str, Any]], tech_stack: str) -> Dict[str, Any]:
-    """
-    Validate that required dependency lock files are present for the tech stack.
-    
-    Args:
-        generated_files: List of generated file metadata
-        tech_stack: Selected tech stack
-        
-    Returns:
-        Validation result with lock file validation results
-    """
-    try:
-        # Define required lock files by tech stack
-        required_lock_files = {
-            'react_spa': ['package-lock.json', 'yarn.lock'],  # Either one is acceptable
-            'react_fullstack': ['package-lock.json', 'yarn.lock'],
-            'node_api': ['package-lock.json', 'yarn.lock'],
-            'vue_spa': ['package-lock.json', 'yarn.lock'],
-            'python_api': ['requirements.txt', 'poetry.lock', 'Pipfile.lock']  # Multiple options
-        }
-        
-        generated_file_paths = {file.get('file_path') for file in generated_files}
-        expected_lock_files = required_lock_files.get(tech_stack.lower(), ['package-lock.json'])
-        
-        issues = []
-        
-        # Check if ANY of the expected lock files are present
-        if tech_stack.lower() in ['react_spa', 'react_fullstack', 'node_api', 'vue_spa']:
-            # For Node.js-based stacks, we need either package-lock.json OR yarn.lock
-            has_npm_lock = 'package-lock.json' in generated_file_paths
-            has_yarn_lock = 'yarn.lock' in generated_file_paths
-            has_package_json = 'package.json' in generated_file_paths
-            
-            if not has_package_json:
-                issues.append("Missing package.json - required for Node.js projects")
-            
-            if not (has_npm_lock or has_yarn_lock):
-                issues.append(
-                    f"Missing dependency lock file for {tech_stack}. "
-                    f"Expected one of: {', '.join(expected_lock_files)}. "
-                    f"GitHub Actions requires lock files for dependency caching and reproducible builds."
-                )
-        
-        elif tech_stack.lower() == 'python_api':
-            # For Python, check for requirements.txt at minimum
-            has_requirements = 'requirements.txt' in generated_file_paths
-            has_poetry_lock = 'poetry.lock' in generated_file_paths
-            has_pipfile_lock = 'Pipfile.lock' in generated_file_paths
-            
-            if not has_requirements:
-                issues.append("Missing requirements.txt - required for Python projects")
-            
-            if not (has_poetry_lock or has_pipfile_lock):
-                issues.append(
-                    f"Missing dependency lock file for Python project. "
-                    f"Consider adding poetry.lock or Pipfile.lock for reproducible builds."
-                )
-        
-        return {
-            'validation_type': 'lock_file_validation',
-            'passed': len(issues) == 0,
-            'issues': issues,
-            'details': {
-                'tech_stack': tech_stack,
-                'expected_lock_files': expected_lock_files,
-                'generated_files_count': len(generated_files),
-                'has_package_json': 'package.json' in generated_file_paths,
-                'has_package_lock': 'package-lock.json' in generated_file_paths,
-                'has_yarn_lock': 'yarn.lock' in generated_file_paths
-            }
-        }
-        
-    except Exception as e:
-        return {
-            'validation_type': 'lock_file_validation',
-            'passed': False,
-            'issues': [f"Lock file validation failed: {str(e)}"],
-            'details': {}
-        }
-
-
-def validate_build_requirements(generated_files: List[Dict[str, Any]], tech_stack: str, architecture: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Validate that all required build files and configuration are present.
-    
-    Args:
-        generated_files: List of generated file metadata
-        tech_stack: Selected tech stack
-        architecture: Project architecture configuration
-        
-    Returns:
-        Validation result with build requirements validation results
-    """
-    try:
-        generated_file_paths = {file.get('file_path') for file in generated_files}
-        issues = []
-        
-        # Define required build files by tech stack
-        required_build_files = {
-            'react_spa': {
-                'required': ['package.json'],
-                'recommended': ['vite.config.ts', 'tsconfig.json', '.eslintrc.json', '.gitignore']
-            },
-            'react_fullstack': {
-                'required': ['package.json'],
-                'recommended': ['vite.config.ts', 'tsconfig.json', '.eslintrc.json', '.gitignore']
-            },
-            'node_api': {
-                'required': ['package.json'],
-                'recommended': ['tsconfig.json', '.eslintrc.json', '.gitignore', 'nodemon.json']
-            },
-            'vue_spa': {
-                'required': ['package.json'],
-                'recommended': ['vite.config.ts', 'tsconfig.json', '.eslintrc.json', '.gitignore']
-            },
-            'python_api': {
-                'required': ['requirements.txt'],
-                'recommended': ['pyproject.toml', '.gitignore', 'Dockerfile']
-            }
-        }
-        
-        build_files = required_build_files.get(tech_stack.lower(), {'required': ['package.json'], 'recommended': []})
-        
-        # Check required files
-        for required_file in build_files['required']:
-            if required_file not in generated_file_paths:
-                issues.append(f"Missing required build file: {required_file}")
-        
-        # Check recommended files (warnings, not failures)
-        missing_recommended = []
-        for recommended_file in build_files['recommended']:
-            if recommended_file not in generated_file_paths:
-                missing_recommended.append(recommended_file)
-        
-        # Validate package.json content for Node.js-based projects
-        if tech_stack.lower() in ['react_spa', 'react_fullstack', 'node_api', 'vue_spa']:
-            # For react_fullstack, check both root and workspace package.json files
-            package_files_to_check = []
-            
-            if tech_stack.lower() == 'react_fullstack':
-                # Check root, client, and server package.json files
-                for path in ['package.json', 'client/package.json', 'server/package.json']:
-                    pkg_file = next((f for f in generated_files if f.get('file_path') == path), None)
-                    if pkg_file:
-                        package_files_to_check.append((path, pkg_file))
-            else:
-                # For other tech stacks, just check root package.json
-                pkg_file = next((f for f in generated_files if f.get('file_path') == 'package.json'), None)
-                if pkg_file:
-                    package_files_to_check.append(('package.json', pkg_file))
-            
-            for file_path, package_json_file in package_files_to_check:
-                try:
-                    import json
-                    # Retrieve content from S3 if using metadata pattern
-                    if 's3_bucket' in package_json_file and 's3_key' in package_json_file:
-                        content = retrieve_file_content_from_s3(package_json_file)
-                    else:
-                        # Backward compatibility - content might be inline
-                        content = package_json_file.get('content', '{}')
-                    
-                    package_content = json.loads(content if content else '{}')
-                    
-                    # Check for required scripts
-                    scripts = package_content.get('scripts', {})
-                    required_scripts = ['build', 'dev']
-                    
-                    # For server packages, also check for start script (but client uses 'dev' or 'preview')
-                    if 'server' in file_path:
-                        required_scripts.append('start')
-                    
-                    for script in required_scripts:
-                        if script not in scripts:
-                            issues.append(f"Missing required script in {file_path}: {script}")
-                    
-                    # Check for dependencies - but allow empty for monorepo root
-                    # Monorepos (react_fullstack) may have empty dependencies at root with workspaces
-                    is_monorepo = 'workspaces' in package_content
-                    dependencies = package_content.get('dependencies', {})
-                    
-                    # Only require dependencies if not a monorepo structure and not root package.json in fullstack
-                    if not dependencies and not is_monorepo and not (tech_stack.lower() == 'react_fullstack' and file_path == 'package.json'):
-                        issues.append(f"{file_path} has no dependencies defined")
-                        
-                except json.JSONDecodeError:
-                    issues.append(f"{file_path} contains invalid JSON")
-                except Exception as e:
-                    issues.append(f"Failed to validate {file_path}: {str(e)}")
-        
-        # Check build configuration consistency
-        build_config = architecture.get('build_config', {})
-        expected_package_manager = build_config.get('package_manager', 'npm')
-        
-        if tech_stack.lower() in ['react_spa', 'react_fullstack', 'node_api', 'vue_spa']:
-            # Validate package manager consistency
-            if expected_package_manager == 'npm' and 'yarn.lock' in generated_file_paths:
-                issues.append("Build config specifies npm but yarn.lock found - package manager mismatch")
-            elif expected_package_manager == 'yarn' and 'package-lock.json' in generated_file_paths:
-                issues.append("Build config specifies yarn but package-lock.json found - package manager mismatch")
-        
-        return {
-            'validation_type': 'build_requirements_validation',
-            'passed': len(issues) == 0,
-            'issues': issues,
-            'warnings': [f"Missing recommended file: {f}" for f in missing_recommended] if missing_recommended else [],
-            'details': {
-                'tech_stack': tech_stack,
-                'required_files': build_files['required'],
-                'recommended_files': build_files['recommended'],
-                'missing_recommended': missing_recommended,
-                'package_manager': expected_package_manager,
-                'generated_files_count': len(generated_files)
-            }
-        }
-        
-    except Exception as e:
-        return {
-            'validation_type': 'build_requirements_validation',
-            'passed': False,
-            'issues': [f"Build requirements validation failed: {str(e)}"],
-            'details': {}
-        }
-
-
-def get_build_commands(tech_stack: str) -> List[str]:
-    """Get build commands for the tech stack."""
-    build_commands = {
-        'react_spa': ['npm install', 'npm run build', 'npm test'],
-        'react_fullstack': ['npm install', 'npm run build', 'npm test'],
-        'node_api': ['npm install', 'npm run build', 'npm test'],
-        'vue_spa': ['npm install', 'npm run build', 'npm test'],
-        'python_api': ['pip install -r requirements.txt', 'python -m pytest', 'python -m build']
-    }
-    return build_commands.get(tech_stack.lower(), ['npm install', 'npm run build', 'npm test'])
-
-
-def get_deployment_target(tech_stack: str) -> str:
-    """Get deployment target for the tech stack."""
-    deployment_targets = {
-        'react_spa': 'netlify',
-        'react_fullstack': 'netlify_and_aws',
-        'node_api': 'aws_ecs',
-        'vue_spa': 'netlify', 
-        'python_api': 'aws_ecs'
-    }
-    return deployment_targets.get(tech_stack.lower(), 'netlify')

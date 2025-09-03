@@ -1,0 +1,35 @@
+{
+  "statusCode": 200,
+  "status": "success", 
+  "execution_id": "story_exec_test_123",
+  "stage": "story_execution",
+  "project_id": "coach-connect-test",
+  "data": {
+    "generated_files": [
+      {
+        "file_path": "package.json",
+        "component_id": "comp_story_001",
+        "story_id": "story_001",
+        "file_type": "config",
+        "language": "json"
+      },
+      {
+        "file_path": "client/src/components/PlayerProfile.tsx",
+        "component_id": "comp_story_001", 
+        "story_id": "story_001",
+        "file_type": "source",
+        "language": "typescript"
+      }
+    ],
+    "pipeline_context": {
+      "execution_id": "story_exec_test_123",
+      "project_id": "coach-connect-test",
+      "stage": "story_execution",
+      "architecture": {
+        "project_id": "coach-connect-test",
+        "name": "Coach Connect App",
+        "tech_stack": "react_fullstack"
+      }
+    }
+  }
+}
